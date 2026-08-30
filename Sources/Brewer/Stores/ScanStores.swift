@@ -292,15 +292,33 @@ final class MasStore {
         }
     }
 
+    // mas 7 requires root for install/upgrade (App Store apps are owned by
+    // root) and hardcodes /usr/bin/sudo internally - but that inner sudo can't
+    // prompt without a terminal. So we elevate mas ourselves with `sudo -A`,
+    // which uses our SUDO_ASKPASS helper to show the native password dialog.
+    // mas is built for this: it recovers the real user via SUDO_UID/SUDO_GID.
+
     func upgradeAll() async {
         guard let path = masPath else { return }
-        await console.run(title: "Upgrade App Store apps", executablePath: path, arguments: ["upgrade"])
+        await console.run(
+            title: "Upgrade App Store apps",
+            executablePath: "/usr/bin/sudo",
+            arguments: ["-A", path, "upgrade"],
+            displayCommand: "sudo mas upgrade",
+            subjects: outdated.map { "mas:\($0.adamID)" }
+        )
         await refresh()
     }
 
     func upgrade(_ app: MasApp) async {
         guard let path = masPath else { return }
-        await console.run(title: "Upgrade \(app.name)", executablePath: path, arguments: ["upgrade", app.adamID])
+        await console.run(
+            title: "Upgrade \(app.name)",
+            executablePath: "/usr/bin/sudo",
+            arguments: ["-A", path, "upgrade", app.adamID],
+            displayCommand: "sudo mas upgrade \(app.adamID)",
+            subjects: ["mas:\(app.adamID)"]
+        )
         await refresh()
     }
 

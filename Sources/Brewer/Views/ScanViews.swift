@@ -572,10 +572,14 @@ private struct MasRow: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
             if showsUpgrade {
-                Button("Upgrade") {
-                    Task { await app.mas.upgrade(masApp) }
+                if app.console.isPending(subject: "mas:\(masApp.adamID)") {
+                    ProgressView().controlSize(.small).help("Queued")
+                } else {
+                    Button("Upgrade") {
+                        Task { await app.mas.upgrade(masApp) }
+                    }
+                    .controlSize(.small)
                 }
-                .controlSize(.small)
             }
         }
         .padding(.vertical, 2)
