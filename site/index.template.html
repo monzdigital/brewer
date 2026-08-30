@@ -391,12 +391,22 @@
     section { padding: 72px 0; }
   }
 
+  @media print {
+    .rv, .hero-shot .frame { opacity: 1 !important; transform: none !important; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
     .rv, .hero-shot .frame { opacity: 1 !important; transform: none !important; }
     html { scroll-behavior: auto; }
   }
 </style>
+
+<noscript><style>
+  .rv, .hero-shot .frame { opacity: 1 !important; transform: none !important; }
+  .stage img:first-child { opacity: 1; }
+  .terminal, #bubbles { display: none; }
+</style></noscript>
 
 <nav>
   <div class="nav-inner">

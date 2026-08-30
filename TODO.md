@@ -37,7 +37,17 @@ da budur.
 - [ ] "Developer ID Application" sertifikası oluşturup Keychain'e yüklemek
 - [ ] `xcrun notarytool store-credentials` ile bir notary profili kaydetmek
 - [ ] Notarize edilmiş sürüm için `SIGN_IDENTITY` + `NOTARY_PROFILE` ile `scripts/release.sh` → `gh release upload` (o zamana kadar site "notarize edilmemiş erken sürüm" notu taşıyor)
-- [ ] (İsteğe bağlı) Kendi tap'inde `brewer.rb` cask'i → `brew install --cask monzdigital/tap/brewer`
+- [x] Kendi tap: https://github.com/monzdigital/homebrew-tap → `brew install --cask monzdigital/tap/brewer`
+      (bu Mac'te uçtan uca test edildi; Homebrew 6 ilk kullanımda tap'e güven soruyor)
+
+### Resmi Homebrew'a (homebrew/cask) girme yol haritası
+Hedef: önek olmadan `brew install --cask brewer` çalışsın. Kabul şartları:
+- [ ] Bilinirlik eşiği: GitHub'da ≥75 yıldız VEYA ≥30 fork VEYA ≥30 izleyiciden biri
+- [ ] Repo yaşı > 30 gün (brew audit bunu denetler)
+- [ ] Sürüm stabil ve versiyonlu (✓ v1.0.0 hazır); notarizasyon şart değil ama önerilir
+- [ ] Hazır olunca: `homebrew/homebrew-cask` fork'la → `Casks/b/brewer.rb` ekle (tap'tekinin aynısı)
+      → `brew audit --new --cask brewer` temiz geçmeli → PR aç → maintainer onayı
+- Kabul sonrası kendi tap'teki cask kaldırılır (çakışmayı önlemek için)
 
 ### Sonraki geliştirmeler
 - [ ] Sparkle framework'ü gömerek Brewer'ın kendi kendini güncellemesi

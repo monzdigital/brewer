@@ -1,0 +1,238 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]:
+      - link "🍺 Brewer" [ref=e4] [cursor=pointer]:
+        - /url: "#"
+        - generic [ref=e5]: 🍺
+        - text: Brewer
+      - generic [ref=e6]:
+        - link "Features" [ref=e7] [cursor=pointer]:
+          - /url: "#features"
+        - link "Screens" [ref=e8] [cursor=pointer]:
+          - /url: "#tour"
+        - link "Everything else" [ref=e9] [cursor=pointer]:
+          - /url: "#everything"
+        - link "GitHub" [ref=e10] [cursor=pointer]:
+          - /url: https://github.com/monzdigital/brewer
+        - link "Download free" [ref=e11] [cursor=pointer]:
+          - /url: "#download"
+  - banner [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e14]: FREE · NATIVE · OPEN SETUP
+      - heading "Homebrew, poured into a real Mac app" [level=1] [ref=e16]
+      - paragraph [ref=e17]: Brewer turns brew commands into point-and-click - browse, install, update, clean up, and watch every command run live. Without giving up the terminal when you still want it.
+      - generic [ref=e18]:
+        - link "⬇︎ Download for Mac - Free" [ref=e19] [cursor=pointer]:
+          - /url: "#download"
+        - link "See the screens" [ref=e20] [cursor=pointer]:
+          - /url: "#tour"
+      - generic [ref=e21]:
+        - generic [ref=e22]: macOS 14+
+        - generic [ref=e23]: Apple Silicon & Intel
+        - generic [ref=e24]: 5 MB - no accounts, no tracking
+      - generic [ref=e25]: $ brew install brewer ==> Downloading brewer-1.0.0.zip ==> Pouring into /Applications… 🍺 brewer was successfully installed!
+    - img "Brewer main window listing 203 installed Homebrew packages with a detail pane" [ref=e34]
+  - generic [ref=e36]:
+    - generic [ref=e37]:
+      - generic [ref=e38]: 1:1
+      - text: every action maps to a real brew command
+    - generic [ref=e39]:
+      - generic [ref=e40]: Live
+      - text: streaming command output
+    - generic [ref=e41]:
+      - generic [ref=e42]: All apps
+      - text: "- Homebrew, App Store, Sparkle, manual"
+    - generic [ref=e43]:
+      - generic [ref=e44]: Battery-aware
+      - text: background upgrades
+    - generic [ref=e45]:
+      - generic [ref=e46]: Leftover-free
+      - text: uninstalls, AppCleaner-style
+    - generic [ref=e47]:
+      - generic [ref=e48]: Brewfile
+      - text: import & export
+    - generic [ref=e49]:
+      - generic [ref=e50]: brew doctor
+      - text: without the wall of text
+    - generic [ref=e51]:
+      - generic [ref=e52]: 1:1
+      - text: every action maps to a real brew command
+    - generic [ref=e53]:
+      - generic [ref=e54]: Live
+      - text: streaming command output
+    - generic [ref=e55]:
+      - generic [ref=e56]: All apps
+      - text: "- Homebrew, App Store, Sparkle, manual"
+    - generic [ref=e57]:
+      - generic [ref=e58]: Battery-aware
+      - text: background upgrades
+    - generic [ref=e59]:
+      - generic [ref=e60]: Leftover-free
+      - text: uninstalls, AppCleaner-style
+    - generic [ref=e61]:
+      - generic [ref=e62]: Brewfile
+      - text: import & export
+    - generic [ref=e63]:
+      - generic [ref=e64]: brew doctor
+      - text: without the wall of text
+  - generic [ref=e66]:
+    - generic [ref=e67]:
+      - generic [ref=e68]: Why Brewer
+      - heading "Everything brew does, one click away" [level=2] [ref=e69]
+      - paragraph [ref=e70]: No mystery. Each button runs the exact brew command you would have typed - and shows you its output while it runs.
+    - generic [ref=e71]:
+      - generic [ref=e72]:
+        - generic [ref=e73]: Updates
+        - heading "See what's outdated. Upgrade it your way." [level=3] [ref=e74]
+        - paragraph [ref=e75]: 133 packages behind? Upgrade everything, cherry-pick one, or snooze the noisy ones for a week.
+        - list [ref=e76]:
+          - listitem [ref=e77]: Scheduled checks with notifications - every 6h, daily, or weekly
+          - listitem [ref=e78]: Automatic background upgrades that wait for AC power
+          - listitem [ref=e79]: Running apps are closed cleanly before their upgrade
+          - listitem [ref=e80]: The menu bar icon shows the outdated count at a glance
+      - img "Updates screen with 133 available updates and per-package upgrade buttons" [ref=e82]
+    - generic [ref=e83]:
+      - generic [ref=e84]:
+        - generic [ref=e85]: Live console
+        - heading "Watch Homebrew do its thing" [level=3] [ref=e86]
+        - paragraph [ref=e87]: A Cakebrew-style console docks at the bottom of the window. Install something and the real output streams in - colors, warnings, exit codes, a Stop button.
+        - list [ref=e88]:
+          - listitem [ref=e89]: Every operation is queued, logged, and kept in History
+          - listitem [ref=e90]:
+            - text: Readable
+            - code [ref=e91]: brew doctor
+            - text: ", cleanup previews with sizes"
+          - listitem [ref=e92]: Failures show the real error - not a shrug
+      - generic [ref=e93]:
+        - img "Docked console streaming live brew doctor output under the Diagnostics screen"
+    - generic [ref=e94]:
+      - generic [ref=e95]:
+        - generic [ref=e96]: Beyond Homebrew
+        - heading "Every app on your Mac, one inventory" [level=3] [ref=e97]
+        - paragraph [ref=e98]: Brewer scans everything - casks, App Store buys, Sparkle self-updaters, and apps you dragged in years ago - with size, source, and architecture.
+        - list [ref=e99]:
+          - listitem [ref=e100]: "Update Sparkle apps directly: download, back up the old version, install"
+          - listitem [ref=e101]: Read the release notes before you say yes
+          - listitem [ref=e102]: Roll back from automatic backups if a new version misbehaves
+          - listitem [ref=e103]: Adopt manually-installed apps so brew manages them from now on
+      - generic [ref=e104]:
+        - img "Apps inventory listing 55 applications with install source badges and sizes"
+    - generic [ref=e105]:
+      - generic [ref=e106]:
+        - generic [ref=e107]: Uninstaller
+        - heading "Delete apps without the crumbs" [level=3] [ref=e108]
+        - paragraph [ref=e109]: Drop any app on Brewer and it finds the caches, preferences, containers and logs left behind - then trashes it all together. Casks go through brew, leftovers included.
+        - list [ref=e110]:
+          - listitem [ref=e111]: Everything goes to the Trash, so nothing is lost forever
+          - listitem [ref=e112]: SmartDelete watches the Trash and offers cleanup automatically
+          - listitem [ref=e113]: System and Apple apps are protected - always
+      - generic [ref=e114]:
+        - img "Uninstaller drop zone for removing an app together with its leftover files"
+  - generic [ref=e116]:
+    - generic [ref=e117]:
+      - generic [ref=e118]: Screen tour
+      - heading "Have a look around" [level=2] [ref=e119]
+      - paragraph [ref=e120]: Real screenshots, taken from a Mac with 203 packages installed.
+    - tablist [ref=e121]:
+      - tab "Installed" [ref=e122] [cursor=pointer]
+      - tab "Discover" [ref=e123] [cursor=pointer]
+      - tab "Updates" [ref=e124] [cursor=pointer]
+      - tab "Health" [ref=e125] [cursor=pointer]
+      - tab "App Updates" [ref=e126] [cursor=pointer]
+      - tab "Diagnostics" [ref=e127] [cursor=pointer]
+    - generic [ref=e128]:
+      - img "Everything you've installed - filter, multi-select, act in bulk." [ref=e129]
+      - img "A curated catalog with live install counts from formulae.brew.sh." [ref=e130]
+      - img "133 outdated packages, upgradable together or one at a time." [ref=e131]
+      - img "Outdated, deprecated, orphans, cache and doctor - scored at a glance." [ref=e132]
+      - img "Sparkle apps checked against their own feeds - update with automatic backup." [ref=e133]
+      - img "brew doctor as readable cards instead of a wall of terminal text." [ref=e134]
+    - paragraph [ref=e135]: Everything you've installed - filter, multi-select, act in bulk.
+  - generic [ref=e137]:
+    - generic [ref=e138]:
+      - generic [ref=e139]: And the rest
+      - heading "Small features you'll end up using daily" [level=2] [ref=e140]
+    - generic [ref=e141]:
+      - generic [ref=e142]:
+        - generic [ref=e143]: 🔎
+        - heading "Search everything" [level=4] [ref=e144]
+        - paragraph [ref=e145]:
+          - text: Formulae, casks and third-party taps from one bar. Paste
+          - code [ref=e146]: owner/tap/pkg
+          - text: and Brewer adds the missing tap for you.
+      - generic [ref=e147]:
+        - generic [ref=e148]: 🧾
+        - heading "Know before you install" [level=4] [ref=e149]
+        - paragraph [ref=e150]: Dependencies, license, caveats, disk usage and quarantine status - before anything touches your system.
+      - generic [ref=e151]:
+        - generic [ref=e152]: ⚙️
+        - heading "Services" [level=4] [ref=e153]
+        - paragraph [ref=e154]: Start, stop and restart brew services - databases and daemons - without touching launchctl.
+      - generic [ref=e155]:
+        - generic [ref=e156]: 📦
+        - heading "Brewfile" [level=4] [ref=e157]
+        - paragraph [ref=e158]: Export your whole setup to a Brewfile, or replay one on a new Mac. Moving machines takes minutes.
+      - generic [ref=e159]:
+        - generic [ref=e160]: 🩺
+        - heading "Health dashboard" [level=4] [ref=e161]
+        - paragraph [ref=e162]: Outdated counts, deprecated packages, orphans, cache size and a doctor report - scored at a glance.
+      - generic [ref=e163]:
+        - generic [ref=e164]: 🧹
+        - heading "Cleanup" [level=4] [ref=e165]
+        - paragraph [ref=e166]:
+          - text: Preview exactly what
+          - code [ref=e167]: brew cleanup
+          - text: would delete, file by file with sizes, then reclaim the space.
+      - generic [ref=e168]:
+        - generic [ref=e169]: 🏷️
+        - heading "Tags & collections" [level=4] [ref=e170]
+        - paragraph [ref=e171]: Favorites, pins, per-package notes, tags and collections - organize a big setup your way.
+      - generic [ref=e172]:
+        - generic [ref=e173]: 🍏
+        - heading "Apple Silicon scan" [level=4] [ref=e174]
+        - paragraph [ref=e175]: Find apps still running under Rosetta 2 and Homebrew installs living in the wrong prefix.
+      - generic [ref=e176]:
+        - generic [ref=e177]: 🛍️
+        - heading "App Store too" [level=4] [ref=e178]
+        - paragraph [ref=e179]: With the mas CLI, Mac App Store apps join the same update flow - one place for everything.
+  - generic [ref=e181]:
+    - generic [ref=e182]: Download
+    - heading "Free. As in actually free." [level=2] [ref=e183]
+    - paragraph [ref=e184]: No license keys, no trial timers, no accounts. Download it, drop it in Applications, brew happy.
+    - generic [ref=e185]:
+      - generic [ref=e186]:
+        - text: $0
+        - generic [ref=e187]: free forever
+      - link "⬇︎ Download Brewer 1.0.0" [ref=e188] [cursor=pointer]:
+        - /url: https://github.com/monzdigital/brewer/releases/latest/download/Brewer-1.0.0.zip
+      - generic [ref=e189]:
+        - generic [ref=e190]: Universal binary - Apple Silicon & Intel · macOS 14 Sonoma or later
+        - generic [ref=e191]:
+          - text: Needs
+          - link "Homebrew" [ref=e192] [cursor=pointer]:
+            - /url: https://brew.sh
+          - text: (Brewer will point you there if it's missing)
+        - generic [ref=e193]:
+          - text: ~3 MB zip · everything runs locally on your Mac ·
+          - link "source on GitHub" [ref=e194] [cursor=pointer]:
+            - /url: https://github.com/monzdigital/brewer
+        - generic [ref=e195]: "Early build, not yet notarized - first launch: right-click the app → Open,or allow it under System Settings → Privacy & Security."
+    - paragraph [ref=e196]:
+      - text: Prefer the terminal?
+      - code [ref=e197]: brew install --cask monzdigital/tap/brewer
+      - text: Homebrew will ask you to trust the tap on first use.
+  - contentinfo [ref=e198]:
+    - generic [ref=e199]:
+      - generic [ref=e200]:
+        - generic [ref=e201]: 🍺
+        - text: Brewer
+      - generic [ref=e202]: Made for people who love Homebrew but not typing it.
+      - generic [ref=e203]:
+        - link "GitHub" [ref=e204] [cursor=pointer]:
+          - /url: https://github.com/monzdigital/brewer
+        - link "Releases" [ref=e205] [cursor=pointer]:
+          - /url: https://github.com/monzdigital/brewer/releases
+        - link "Homebrew" [ref=e206] [cursor=pointer]:
+          - /url: https://brew.sh
+        - link "Top ↑" [ref=e207] [cursor=pointer]:
+          - /url: "#top"
