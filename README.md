@@ -5,7 +5,7 @@ point-and-click actions. Built in SwiftUI. Everything maps directly to real
 brew commands, so your setup stays portable, familiar, and fully yours.
 
 **🌐 Website: [monzdigital.github.io/brewer](https://monzdigital.github.io/brewer/) ·
-⬇️ [Download the latest release](https://github.com/monzdigital/brewer/releases/latest/download/Brewer-1.0.0.zip)**
+⬇️ [Download the latest release](https://github.com/monzdigital/brewer/releases/latest)**
 
 ```bash
 brew install --cask monzdigital/tap/brewer
