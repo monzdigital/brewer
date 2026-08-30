@@ -8,6 +8,8 @@ import SwiftUI
 struct AppUpdatesView: View {
     @Environment(AppState.self) private var app
     @State private var showAll = false
+    @State private var notesTarget: SparkleUpdate?
+    @State private var showingBackups = false
 
     private var rows: [SparkleUpdate] {
         showAll ? app.appUpdates.results : app.appUpdates.availableUpdates
@@ -27,6 +29,11 @@ struct AppUpdatesView: View {
                 Toggle("Show All", isOn: $showAll)
                     .toggleStyle(.switch)
                     .controlSize(.small)
+                Button {
+                    showingBackups = true
+                } label: {
+                    Label("Backups", systemImage: "clock.arrow.circlepath")
+                }
                 Button {
                     Task { await app.appUpdates.scan(casks: app.packages.casks) }
                 } label: {
@@ -53,12 +60,20 @@ struct AppUpdatesView: View {
                 Spacer()
             } else {
                 List(rows) { update in
-                    SparkleUpdateRow(update: update)
+                    SparkleUpdateRow(update: update, onShowNotes: { notesTarget = update })
                 }
                 .listStyle(.inset)
             }
         }
         .navigationTitle("App Updates")
+        .sheet(item: $notesTarget) { update in
+            ReleaseNotesSheet(update: update)
+                .environment(app)
+        }
+        .sheet(isPresented: $showingBackups) {
+            BackupsSheet()
+                .environment(app)
+        }
         .task {
             if app.appUpdates.lastScan == nil && !app.appUpdates.isScanning {
                 await app.appUpdates.scan(casks: app.packages.casks)
@@ -79,6 +94,11 @@ struct AppUpdatesView: View {
 private struct SparkleUpdateRow: View {
     @Environment(AppState.self) private var app
     let update: SparkleUpdate
+    var onShowNotes: () -> Void
+
+    private var phase: AppUpdateInstaller.Phase {
+        app.installer.phase(for: update.appPath)
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -101,39 +121,98 @@ private struct SparkleUpdateRow: View {
                         Text(update.latestVersion)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.blue)
+                        if let bytes = update.enclosureBytes {
+                            Text("· \(Format.bytes(bytes))")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                 }
+                phaseLine
             }
             Spacer()
             TinyBadge(text: "Sparkle", color: .teal)
             if update.hasUpdate {
-                if let notes = update.releaseNotesURL {
-                    Link(destination: notes) {
-                        Image(systemName: "doc.text.magnifyingglass")
-                    }
-                    .help("Release notes")
-                }
                 Button {
-                    NSWorkspace.shared.openApplication(
-                        at: URL(fileURLWithPath: update.appPath),
-                        configuration: NSWorkspace.OpenConfiguration()
-                    )
+                    onShowNotes()
                 } label: {
-                    Image(systemName: "arrow.up.forward.app")
+                    Image(systemName: "doc.text.magnifyingglass")
                 }
                 .buttonStyle(.plain)
-                .help("Open the app to update via its built-in updater")
-                if let download = update.downloadURL {
-                    Link(destination: download) {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(.blue)
-                    }
-                    .help("Download the update in your browser")
-                }
+                .help("What's new in \(update.latestVersion)")
+
+                trailingAction
             }
         }
         .padding(.vertical, 3)
+    }
+
+    @ViewBuilder
+    private var phaseLine: some View {
+        switch phase {
+        case .idle:
+            EmptyView()
+        case .downloading(let progress):
+            HStack(spacing: 6) {
+                ProgressView(value: progress)
+                    .controlSize(.small)
+                    .frame(width: 120)
+                Text(progress.map { "\(Int($0 * 100))%" } ?? "Downloading…")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        case .backingUp:
+            Text("Backing up current version…").font(.caption2).foregroundStyle(.secondary)
+        case .extracting:
+            Text("Extracting update…").font(.caption2).foregroundStyle(.secondary)
+        case .installing:
+            Text("Installing…").font(.caption2).foregroundStyle(.secondary)
+        case .finished(let note):
+            Label(note, systemImage: "checkmark.circle.fill")
+                .font(.caption2)
+                .foregroundStyle(.green)
+        case .failed(let reason):
+            Label(reason, systemImage: "xmark.circle")
+                .font(.caption2)
+                .foregroundStyle(.red)
+                .lineLimit(1)
+        }
+    }
+
+    @ViewBuilder
+    private var trailingAction: some View {
+        if let token = update.managedByCask {
+            Button("brew upgrade") {
+                if let package = app.packages.package(id: BrewPackage.makeID(kind: .cask, name: token)) {
+                    Task { await app.packages.upgrade([package]) }
+                }
+            }
+            .controlSize(.small)
+            .help("This app is managed by Homebrew — upgrade the cask")
+            .disabled(app.console.isBusy)
+        } else if phase.isActive {
+            ProgressView().controlSize(.small)
+        } else if update.downloadURL != nil {
+            Button {
+                Task { await app.installer.performUpdate(update) }
+            } label: {
+                Label("Update", systemImage: "arrow.down.circle.fill")
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .help("Download, back up the old version, and install automatically")
+        } else {
+            Button {
+                NSWorkspace.shared.openApplication(
+                    at: URL(fileURLWithPath: update.appPath),
+                    configuration: NSWorkspace.OpenConfiguration()
+                )
+            } label: {
+                Image(systemName: "arrow.up.forward.app")
+            }
+            .buttonStyle(.plain)
+            .help("Open the app to update via its built-in updater")
+        }
     }
 }
 

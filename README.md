@@ -42,9 +42,25 @@ brew commands, so your setup stays portable, familiar, and fully yours.
 - Remove quarantine flags from cask apps
 - Duplicate detection (multi-version kegs, Homebrew ⟷ App Store overlaps)
 
+**All apps, not just Homebrew** *(MacUpdater / Latest-style)*
+- Apps inventory: every app on the Mac with install source (Homebrew /
+  App Store / Sparkle / manual), size and architecture
+- Direct Sparkle updates: download → back up the old version → extract
+  (zip/dmg/tar) → install, with release-notes preview and rollback from backups
+- Background checks notify you when app updates appear
+
+**Complete uninstaller** *(AppCleaner-style)*
+- Drag & drop any app to remove it together with its caches, preferences,
+  support files, logs and containers (everything goes to the Trash — recoverable)
+- Homebrew casks are uninstalled through brew, leftovers cleaned after
+- SmartDelete: optionally watch the Trash and offer leftover cleanup when you
+  delete an app the normal way
+- Safety first: Apple/system apps are protected; name-only matches require review
+
 **Extras**
 - Installation history · dependency tree visualization · Apple Silicon scan
   (finds Intel-only apps and Rosetta-installed brew) · `mas` CLI integration
+  · notifications when long operations finish · bottom-docked live console
 
 ## Requirements
 
@@ -64,6 +80,12 @@ make icon       # regenerate packaging/AppIcon.icns
 
 The result is `dist/Brewer.app` — copy it to /Applications if you like.
 With Xcode installed you can also open `Package.swift` directly.
+
+For signed, notarized, universal (arm64+x86_64) builds for distribution, see
+[docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) and `scripts/release.sh`.
+(Heads-up: this app class cannot ship on the Mac App Store — the App Sandbox
+forbids running brew and managing other apps; Developer ID + notarization is
+the supported path, same as Cork/Cakebrew/AppCleaner.)
 
 ## Verify the data layer
 

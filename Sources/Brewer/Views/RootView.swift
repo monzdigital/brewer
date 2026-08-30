@@ -46,6 +46,8 @@ struct RootView: View {
                 UpdatesView()
             case .appUpdates:
                 AppUpdatesView()
+            case .apps:
+                AppsInventoryView()
             case .appleSilicon:
                 AppleSiliconView()
             case .adoptApps:
@@ -74,6 +76,8 @@ struct RootView: View {
                 DiagnosticsView()
             case .cleanup:
                 CleanupView()
+            case .uninstaller:
+                UninstallerView()
             case .history:
                 HistoryView()
             }
@@ -114,6 +118,8 @@ struct SidebarView: View {
                 Label("App Updates", systemImage: "arrow.down.app")
                     .badge(app.appUpdates.availableUpdates.count)
                     .tag(SidebarItem.appUpdates)
+                Label("Apps", systemImage: "square.grid.3x3")
+                    .tag(SidebarItem.apps)
                 Label("Apple Silicon", systemImage: "cpu")
                     .tag(SidebarItem.appleSilicon)
                 Label("Adopt Apps", systemImage: "plus.app")
@@ -157,6 +163,8 @@ struct SidebarView: View {
                     .tag(SidebarItem.diagnostics)
                 Label("Cleanup", systemImage: "trash")
                     .tag(SidebarItem.cleanup)
+                Label("Uninstaller", systemImage: "trash.slash")
+                    .tag(SidebarItem.uninstaller)
                 Label("History", systemImage: "clock")
                     .tag(SidebarItem.history)
             }

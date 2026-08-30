@@ -52,6 +52,8 @@ final class AppUpdatesStore {
                             latestVersion: latest.version,
                             downloadURL: latest.downloadURL,
                             releaseNotesURL: latest.releaseNotesURL,
+                            notesHTML: latest.notesHTML,
+                            enclosureBytes: latest.enclosureBytes,
                             managedByCask: nil
                         )
                     }
@@ -65,17 +67,7 @@ final class AppUpdatesStore {
         results = found
             .map { update in
                 var copy = update
-                if let token = caskByAppPath[update.appPath] {
-                    copy = SparkleUpdate(
-                        appName: update.appName,
-                        appPath: update.appPath,
-                        currentVersion: update.currentVersion,
-                        latestVersion: update.latestVersion,
-                        downloadURL: update.downloadURL,
-                        releaseNotesURL: update.releaseNotesURL,
-                        managedByCask: token
-                    )
-                }
+                copy.managedByCask = caskByAppPath[update.appPath]
                 return copy
             }
             .sorted { $0.appName.localizedCaseInsensitiveCompare($1.appName) == .orderedAscending }

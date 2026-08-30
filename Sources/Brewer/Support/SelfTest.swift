@@ -112,6 +112,24 @@ enum SelfTestRunner {
         let parsed = MasStore.parseList(masLine)
         check("mas list parser", parsed.first?.name == "Xcode" && parsed.first?.version == "16.0")
 
+        // 13. Leftover scanner safety rules
+        check("leftover: protects Apple apps",
+              LeftoverScanner.isProtected(bundleID: "com.apple.Safari", appURL: nil))
+        check("leftover: protects /System apps",
+              LeftoverScanner.isProtected(bundleID: "com.foo.x", appURL: URL(fileURLWithPath: "/System/Applications/Mail.app")))
+        check("leftover: bundle-id prefix matches",
+              LeftoverScanner.match(itemName: "com.foo.myapp.plist", bundleID: "com.foo.myapp", appName: "MyApp", allowNameMatch: false) == .bundleID)
+        check("leftover: group container matches",
+              LeftoverScanner.match(itemName: "group.com.foo.myapp", bundleID: "com.foo.myapp", appName: "MyApp", allowNameMatch: false) == .bundleID)
+        check("leftover: exact name matches only where allowed",
+              LeftoverScanner.match(itemName: "MyApp", bundleID: nil, appName: "MyApp", allowNameMatch: true) == .nameMatch
+              && LeftoverScanner.match(itemName: "MyApp Extras", bundleID: nil, appName: "MyApp", allowNameMatch: true) == nil)
+        check("leftover: short names are ignored",
+              LeftoverScanner.match(itemName: "Arc", bundleID: nil, appName: "Arc", allowNameMatch: true) == nil)
+
+        // 14. Installer helpers
+        check("installer: sanitizes names", AppUpdateInstaller.sanitized("A/B:C") == "A-B-C")
+
         return failures
     }
 }

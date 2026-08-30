@@ -10,6 +10,9 @@ final class UpdateScheduler {
     var lastCheck: Date?
     var isChecking = false
 
+    /// Extra work to run after each scheduled check (e.g. rescanning Sparkle feeds).
+    var onScheduledCheck: (() async -> Void)?
+
     private unowned let packages: PackageStore
     private var loopTask: Task<Void, Never>?
     private var previousOutdatedCount: Int?
@@ -78,6 +81,10 @@ final class UpdateScheduler {
             )
         }
         previousOutdatedCount = count
+
+        if scheduled {
+            await onScheduledCheck?()
+        }
 
         if scheduled, defaults.bool(forKey: Prefs.autoUpgrade), count > 0 {
             if defaults.bool(forKey: Prefs.batteryAware) {

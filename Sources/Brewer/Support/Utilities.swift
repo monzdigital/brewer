@@ -16,6 +16,10 @@ enum Prefs {
     static let closeAppsBeforeUpgrade = "pref.closeAppsBeforeUpgrade"
     static let greedyCasks = "pref.greedyCasks"
     static let customBrewPath = "pref.customBrewPath"
+    static let notifyOnOperations = "pref.notifyOnOperations"
+    static let smartDelete = "pref.smartDelete"
+    static let backupBeforeUpdate = "pref.backupBeforeUpdate"
+    static let keepBackupsPerApp = "pref.keepBackupsPerApp"
 
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
@@ -29,7 +33,11 @@ enum Prefs {
             batteryAware: true,
             closeAppsBeforeUpgrade: true,
             greedyCasks: false,
-            customBrewPath: ""
+            customBrewPath: "",
+            notifyOnOperations: true,
+            smartDelete: false,
+            backupBeforeUpdate: true,
+            keepBackupsPerApp: 2
         ])
     }
 }

@@ -61,11 +61,11 @@ struct BrewPackage: Identifiable, Hashable {
 
 enum SidebarItem: Hashable {
     case discover, collections, search
-    case installed, formulae, casks, updates, appUpdates, appleSilicon, adoptApps
+    case installed, formulae, casks, updates, appUpdates, apps, appleSilicon, adoptApps
     case appStore
     case favorites, tags, pinned, snoozed
     case taps, services, brewfile
-    case health, duplicates, diagnostics, cleanup, history
+    case health, duplicates, diagnostics, cleanup, uninstaller, history
 }
 
 enum BrowserScope: Hashable {
@@ -179,11 +179,64 @@ struct SparkleUpdate: Identifiable, Hashable {
     let latestVersion: String
     let downloadURL: URL?
     let releaseNotesURL: URL?
-    let managedByCask: String?
+    var notesHTML: String?
+    var enclosureBytes: Int64?
+    var managedByCask: String?
 
     var hasUpdate: Bool {
         VersionCompare.isNewer(latestVersion, than: currentVersion)
     }
+}
+
+// MARK: - Full app inventory (MacUpdater-style)
+
+enum AppSource: String, CaseIterable, Hashable {
+    case homebrew = "Homebrew"
+    case appStore = "App Store"
+    case sparkle = "Sparkle"
+    case manual = "Manual"
+}
+
+struct InventoryApp: Identifiable, Hashable {
+    var id: String { app.id }
+    let app: ScannedApp
+    let source: AppSource
+    let caskToken: String?
+    var archs: Set<String> = []
+    var sizeBytes: Int64?
+
+    var isIntelOnly: Bool { archs.contains("x86_64") && !archs.contains("arm64") }
+}
+
+// MARK: - Deep uninstall (AppCleaner-style)
+
+enum LeftoverConfidence: Hashable {
+    case bundleID   // matched the app's bundle identifier — safe to remove
+    case nameMatch  // matched only by app name — review before removing
+}
+
+struct LeftoverItem: Identifiable, Hashable {
+    var id: String { path }
+    let path: String
+    let kind: String
+    let confidence: LeftoverConfidence
+    var sizeBytes: Int64?
+
+    var isSystemDomain: Bool { path.hasPrefix("/Library") }
+    var displayName: String { URL(fileURLWithPath: path).lastPathComponent }
+}
+
+// MARK: - App update backups (MacUpdater-style)
+
+struct BackupEntry: Identifiable, Hashable {
+    var id: String { path }
+    let appName: String
+    let version: String
+    let date: Date
+    let path: String        // directory containing the backed-up .app
+    let appBundlePath: String
+    let originalPath: String?
+    var sizeBytes: Int64?
 }
 
 enum AdoptState: Hashable {

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	Developer ID distribution entitlements (Hardened Runtime).
+	Brewer intentionally does NOT use the App Sandbox: it must run the brew
+	executable, write to the Homebrew prefix and /Applications, scan Library
+	folders for leftovers, and manage other app bundles — none of which is
+	possible inside the sandbox. This is why apps of this class (Cork,
+	Cakebrew, AppCleaner, MacUpdater) ship notarized outside the App Store.
+	-->
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<false/>
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<false/>
+</dict>
+</plist>

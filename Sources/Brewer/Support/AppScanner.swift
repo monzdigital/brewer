@@ -66,6 +66,8 @@ enum AppScanner {
         let version: String
         let downloadURL: URL?
         let releaseNotesURL: URL?
+        let notesHTML: String?
+        let enclosureBytes: Int64?
     }
 
     static func latestAppcastVersion(feedURL: URL) async -> AppcastResult? {
@@ -82,9 +84,11 @@ final class AppcastParser: NSObject, XMLParserDelegate {
         var version: String?
         var shortVersion: String?
         var enclosureURL: String?
+        var enclosureLength: Int64?
         var releaseNotesLink: String?
         var link: String?
         var channel: String?
+        var descriptionHTML: String?
 
         var effectiveVersion: String? { shortVersion ?? version }
     }
@@ -116,7 +120,9 @@ final class AppcastParser: NSObject, XMLParserDelegate {
         return AppScanner.AppcastResult(
             version: version,
             downloadURL: best.enclosureURL.flatMap(URL.init(string:)),
-            releaseNotesURL: notes.flatMap(URL.init(string:))
+            releaseNotesURL: notes.flatMap(URL.init(string:)),
+            notesHTML: best.descriptionHTML,
+            enclosureBytes: best.enclosureLength
         )
     }
 
@@ -133,6 +139,7 @@ final class AppcastParser: NSObject, XMLParserDelegate {
             currentItem?.enclosureURL = attributes["url"]
             if let version = attributes["sparkle:version"] { currentItem?.version = version }
             if let short = attributes["sparkle:shortVersionString"] { currentItem?.shortVersion = short }
+            if let length = attributes["length"].flatMap({ Int64($0) }) { currentItem?.enclosureLength = length }
         default:
             break
         }
@@ -140,6 +147,10 @@ final class AppcastParser: NSObject, XMLParserDelegate {
 
     func parser(_ parser: XMLParser, foundCharacters string: String) {
         currentText += string
+    }
+
+    func parser(_ parser: XMLParser, foundCDATA CDATABlock: Data) {
+        currentText += String(decoding: CDATABlock, as: UTF8.self)
     }
 
     func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?,
@@ -154,6 +165,8 @@ final class AppcastParser: NSObject, XMLParserDelegate {
             currentItem?.releaseNotesLink = text
         case "sparkle:channel":
             currentItem?.channel = text
+        case "description":
+            if currentItem != nil, !text.isEmpty { currentItem?.descriptionHTML = text }
         case "link":
             if currentItem != nil, currentItem?.link == nil { currentItem?.link = text }
         case "item":

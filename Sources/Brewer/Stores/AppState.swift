@@ -21,6 +21,9 @@ final class AppState {
     let arch: ArchitectureStore
     let mas: MasStore
     let scheduler: UpdateScheduler
+    let inventory: AppsInventoryStore
+    let uninstaller: UninstallerStore
+    let installer: AppUpdateInstaller
 
     var selection: SidebarItem? = .installed
     var didBootstrap = false
@@ -51,9 +54,30 @@ final class AppState {
         self.arch = ArchitectureStore()
         self.mas = MasStore(console: console)
         self.scheduler = UpdateScheduler(packages: packages)
+        self.inventory = AppsInventoryStore()
+        self.uninstaller = UninstallerStore(console: console, packages: packages)
+        self.installer = AppUpdateInstaller()
 
         console.onFinished = { [weak history] operation in
             history?.record(operation)
+            // WailBrew-style completion notifications for meaningful operations.
+            if UserDefaults.standard.bool(forKey: Prefs.notifyOnOperations),
+               operation.duration > 4 {
+                switch operation.state {
+                case .succeeded:
+                    NotificationManager.post(
+                        title: "Completed: \(operation.title)",
+                        body: "Finished in \(Format.duration(operation.duration))."
+                    )
+                case .failed(let code):
+                    NotificationManager.post(
+                        title: "Failed: \(operation.title)",
+                        body: "Exited with code \(code) — see the console for details."
+                    )
+                default:
+                    break
+                }
+            }
         }
     }
 
@@ -62,8 +86,16 @@ final class AppState {
         didBootstrap = true
 
         NotificationManager.requestAuthorizationIfNeeded()
+        uninstaller.startTrashWatcherIfEnabled()
         await packages.refresh()
         scheduler.start()
+        scheduler.onScheduledCheck = { [weak self] in
+            guard let self else { return }
+            await self.appUpdates.scan(casks: self.packages.casks)
+        }
+        Task { [weak self] in
+            await self?.installer.loadBackups()
+        }
 
         if UserDefaults.standard.bool(forKey: Prefs.checkOnLaunch) {
             Task { [weak self] in

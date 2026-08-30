@@ -21,6 +21,9 @@ printf 'APPL????' > "$APP/Contents/PkgInfo"
 if [ -f packaging/AppIcon.icns ]; then
   cp packaging/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 fi
+if [ -f packaging/PrivacyInfo.xcprivacy ]; then
+  cp packaging/PrivacyInfo.xcprivacy "$APP/Contents/Resources/PrivacyInfo.xcprivacy"
+fi
 
 # Ad-hoc signature so notifications and TCC behave for local use.
 codesign --force --deep --sign - "$APP" 2>/dev/null || true

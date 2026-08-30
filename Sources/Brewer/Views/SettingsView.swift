@@ -19,8 +19,10 @@ struct SettingsView: View {
 // MARK: - General
 
 private struct GeneralSettings: View {
+    @Environment(AppState.self) private var app
     @AppStorage(Prefs.autoOpenConsole) private var autoOpenConsole = true
     @AppStorage(Prefs.compactRows) private var compactRows = false
+    @AppStorage(Prefs.notifyOnOperations) private var notifyOnOperations = true
 
     var body: some View {
         Form {
@@ -32,6 +34,17 @@ private struct GeneralSettings: View {
 
             Toggle("Open console automatically when a command runs", isOn: $autoOpenConsole)
             Toggle("Use compact package lists", isOn: $compactRows)
+            Toggle("Notify when operations finish", isOn: $notifyOnOperations)
+
+            Divider().padding(.vertical, 4)
+
+            Toggle("SmartDelete — watch the Trash for deleted apps", isOn: Binding(
+                get: { app.uninstaller.smartDeleteEnabled },
+                set: { app.uninstaller.setSmartDelete($0) }
+            ))
+            Text("When you trash an app the normal way, Brewer offers to clean up its leftover files too.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .padding(20)
     }
@@ -48,6 +61,7 @@ private struct UpdateSettings: View {
     @AppStorage(Prefs.batteryAware) private var batteryAware = true
     @AppStorage(Prefs.closeAppsBeforeUpgrade) private var closeApps = true
     @AppStorage(Prefs.greedyCasks) private var greedyCasks = false
+    @AppStorage(Prefs.backupBeforeUpdate) private var backupBeforeUpdate = true
 
     var body: some View {
         Form {
@@ -71,6 +85,7 @@ private struct UpdateSettings: View {
             Divider().padding(.vertical, 4)
 
             Toggle("Close running apps cleanly before upgrading them", isOn: $closeApps)
+            Toggle("Back up apps before direct updates (App Updates)", isOn: $backupBeforeUpdate)
             Toggle("Include self-updating casks (--greedy)", isOn: $greedyCasks)
             Text("Greedy upgrades also update casks that normally update themselves (marked “auto-updates”).")
                 .font(.caption)
