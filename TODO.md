@@ -40,6 +40,16 @@ da budur.
 - [x] Kendi tap: https://github.com/monzdigital/homebrew-tap → `brew install --cask monzdigital/tap/brewer`
       (bu Mac'te uçtan uca test edildi; Homebrew 6 ilk kullanımda tap'e güven soruyor)
 
+### GitHub Community Standards (kullanıcı talebi: 2026-08-30)
+https://github.com/monzdigital/brewer/community listesini tamamla:
+- [x] Description + website ✓, README ✓
+- [x] CODE_OF_CONDUCT.md (Contributor Covenant 2.1; iletişim: GitHub issues)
+- [x] CONTRIBUTING.md (derleme, selftest, stil kuralları)
+- [x] SECURITY.md (GitHub private vulnerability reporting)
+- [x] Issue şablonları (bug + özellik) ve PR şablonu
+- [ ] LICENSE - tür seçimi kullanıcıya soruldu (MIT önerisi); seçilince eklenecek
+- [ ] (İsteğe bağlı) Repo Settings → Security → "Private vulnerability reporting"ı aç
+
 ### Resmi Homebrew'a (homebrew/cask) girme yol haritası
 Hedef: önek olmadan `brew install --cask brewer` çalışsın. Kabul şartları:
 - [ ] Bilinirlik eşiği: GitHub'da ≥75 yıldız VEYA ≥30 fork VEYA ≥30 izleyiciden biri

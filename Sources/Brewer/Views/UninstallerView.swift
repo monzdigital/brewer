@@ -275,7 +275,6 @@ struct UninstallerView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.red)
-            .disabled(app.console.isBusy)
         }
         .padding(12)
         .confirmationDialog(

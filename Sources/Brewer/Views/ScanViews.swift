@@ -189,7 +189,6 @@ private struct SparkleUpdateRow: View {
             }
             .controlSize(.small)
             .help("This app is managed by Homebrew - upgrade the cask")
-            .disabled(app.console.isBusy)
         } else if phase.isActive {
             ProgressView().controlSize(.small)
         } else if update.downloadURL != nil {
@@ -345,7 +344,6 @@ private struct AdoptRowView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(app.console.isBusy)
             case .noMatch:
                 Text("No matching cask").font(.caption).foregroundStyle(.tertiary)
                 Button("Search") {
@@ -486,7 +484,6 @@ struct MasView: View {
                         Task { await app.mas.installMasCLI(packages: app.packages) }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(app.console.isBusy)
                 }
             } else {
                 masContent
@@ -514,7 +511,6 @@ struct MasView: View {
                         Label("Upgrade All", systemImage: "arrow.triangle.2.circlepath")
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(app.console.isBusy)
                 }
                 Button {
                     Task { await app.mas.refresh() }
@@ -580,7 +576,6 @@ private struct MasRow: View {
                     Task { await app.mas.upgrade(masApp) }
                 }
                 .controlSize(.small)
-                .disabled(app.console.isBusy)
             }
         }
         .padding(.vertical, 2)

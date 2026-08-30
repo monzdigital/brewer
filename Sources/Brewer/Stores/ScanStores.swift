@@ -166,7 +166,8 @@ final class AdoptStore {
     func adopt(rowID: String, token: String) async {
         await console.runBrew(
             title: "Adopt \(token)",
-            arguments: ["install", "--cask", "--adopt", token]
+            arguments: ["install", "--cask", "--adopt", token],
+            subjects: [BrewPackage.makeID(kind: .cask, name: token)]
         )
         await packages.refresh()
         await scan()

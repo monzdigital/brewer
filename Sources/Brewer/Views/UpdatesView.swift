@@ -76,7 +76,7 @@ struct UpdatesView: View {
                 Label("Upgrade All", systemImage: "arrow.triangle.2.circlepath")
             }
             .buttonStyle(.borderedProminent)
-            .disabled(updates.isEmpty || app.console.isBusy)
+            .disabled(updates.isEmpty)
         }
         .padding(12)
     }
@@ -153,16 +153,21 @@ private struct UpdateRow: View {
                 }
             }
             Spacer()
-            Button {
-                Task { await app.packages.upgrade([package]) }
-            } label: {
-                Image(systemName: "arrow.down.circle")
-                    .font(.title3)
+            if app.console.isPending(subject: package.id) {
+                ProgressView()
+                    .controlSize(.small)
+                    .help("Queued")
+            } else {
+                Button {
+                    Task { await app.packages.upgrade([package]) }
+                } label: {
+                    Image(systemName: "arrow.down.circle")
+                        .font(.title3)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.blue)
+                .help("Upgrade \(package.name)")
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.blue)
-            .help("Upgrade \(package.name)")
-            .disabled(app.console.isBusy)
         }
         .padding(.vertical, 3)
     }

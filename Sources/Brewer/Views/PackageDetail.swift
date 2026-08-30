@@ -100,7 +100,10 @@ struct PackageDetailView: View {
 
     private var actionRow: some View {
         HStack(spacing: 8) {
-            if !live.isInstalled {
+            if app.console.isPending(subject: live.id) {
+                Label("Queued", systemImage: "clock")
+                    .foregroundStyle(.secondary)
+            } else if !live.isInstalled {
                 Button {
                     Task { await app.packages.install(live) }
                 } label: {
@@ -143,8 +146,9 @@ struct PackageDetailView: View {
 
             Spacer()
 
-            if app.console.isBusy {
+            if app.console.isBusy && !app.console.isPresented {
                 ProgressView().controlSize(.small)
+                    .help("An operation is running - open the console with Cmd-L")
             }
         }
     }

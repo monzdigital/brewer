@@ -110,14 +110,13 @@ struct HealthView: View {
                         Label("Update All", systemImage: "arrow.down.circle")
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(app.packages.outdatedCount == 0 || app.console.isBusy)
+                    .disabled(app.packages.outdatedCount == 0)
 
                     Button {
                         Task { await app.health.clearCache(scrub: false) }
                     } label: {
                         Label("Clear Cache", systemImage: "trash")
                     }
-                    .disabled(app.console.isBusy)
 
                     Button {
                         app.selection = .diagnostics
@@ -258,7 +257,6 @@ struct DiagnosticsView: View {
                     } label: {
                         Label("Remove All (\(orphans.count))", systemImage: "trash")
                     }
-                    .disabled(app.console.isBusy)
                 }
             } else if app.health.isRefreshing {
                 ProgressView().controlSize(.small)
@@ -354,7 +352,6 @@ struct CleanupView: View {
                         Label("Clean Up Now", systemImage: "trash")
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(app.console.isBusy)
 
                     Toggle("Scrub cache (also delete latest downloads)", isOn: $scrub)
                         .toggleStyle(.checkbox)
@@ -474,7 +471,6 @@ struct DuplicatesView: View {
                                         Task { await app.duplicates.cleanOldVersions(of: keg.name) }
                                     }
                                     .controlSize(.small)
-                                    .disabled(app.console.isBusy)
                                 }
                             }
                         }

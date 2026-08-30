@@ -27,15 +27,17 @@ final class TaskConsole {
         let id = UUID()
         let title: String
         let commandLine: String
+        let subjectIDs: [String]
         let enqueuedAt = Date()
         var startedAt: Date?
         var finishedAt: Date?
         var lines: [OutputLine] = []
         var state: OperationState = .queued
 
-        init(title: String, commandLine: String) {
+        init(title: String, commandLine: String, subjectIDs: [String] = []) {
             self.title = title
             self.commandLine = commandLine
+            self.subjectIDs = subjectIDs
         }
 
         /// Time actually spent executing (queued time excluded).
@@ -65,6 +67,12 @@ final class TaskConsole {
 
     var isBusy: Bool { operations.contains { !$0.state.isFinished } }
 
+    /// True while an operation touching this package/service is queued or running.
+    /// Lets rows disable just their own button instead of freezing the whole app.
+    func isPending(subject: String) -> Bool {
+        operations.contains { !$0.state.isFinished && $0.subjectIDs.contains(subject) }
+    }
+
     var selectedOperation: Operation? {
         guard let id = selectedOperationID else { return operations.last }
         return operations.first { $0.id == id } ?? operations.last
@@ -78,7 +86,9 @@ final class TaskConsole {
         title: String,
         arguments: [String],
         presentConsole: Bool = true,
-        extraEnvironment: [String: String] = [:]
+        extraEnvironment: [String: String] = [:],
+        subjects: [String] = [],
+        preflight: (@Sendable () async -> Void)? = nil
     ) async -> Bool {
         var env = extraEnvironment
         if arguments.first != "update" && env["HOMEBREW_NO_AUTO_UPDATE"] == nil {
@@ -90,7 +100,9 @@ final class TaskConsole {
             arguments: arguments,
             displayCommand: "brew " + arguments.joined(separator: " "),
             presentConsole: presentConsole,
-            extraEnvironment: env
+            extraEnvironment: env,
+            subjects: subjects,
+            preflight: preflight
         )
     }
 
@@ -101,11 +113,24 @@ final class TaskConsole {
         arguments: [String],
         displayCommand: String? = nil,
         presentConsole: Bool = true,
-        extraEnvironment: [String: String] = [:]
+        extraEnvironment: [String: String] = [:],
+        subjects: [String] = [],
+        preflight: (@Sendable () async -> Void)? = nil
     ) async -> Bool {
         let command = displayCommand
             ?? (URL(fileURLWithPath: executablePath).lastPathComponent + " " + arguments.joined(separator: " "))
-        let operation = Operation(title: title, commandLine: command)
+
+        // The exact same command is already queued or running: don't stack a
+        // duplicate, just bring the existing one into view.
+        if let existing = operations.first(where: { !$0.state.isFinished && $0.commandLine == command }) {
+            selectedOperationID = existing.id
+            if presentConsole && UserDefaults.standard.bool(forKey: Prefs.autoOpenConsole) {
+                isPresented = true
+            }
+            return false
+        }
+
+        let operation = Operation(title: title, commandLine: command, subjectIDs: subjects)
         operations.append(operation)
         selectedOperationID = operation.id
         if operations.count > 60 {
@@ -120,6 +145,9 @@ final class TaskConsole {
                 operation.state = .running
                 operation.startedAt = Date()
             }
+            // Work that must happen right before execution (e.g. quitting an app
+            // about to be upgraded) - not when the operation was merely enqueued.
+            await preflight?()
             let handle = Shell.launch(executablePath, arguments, extraEnvironment: extraEnvironment)
             await MainActor.run { self?.handles[operation.id] = handle }
             var code: Int32 = -1

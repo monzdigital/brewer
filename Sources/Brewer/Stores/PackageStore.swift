@@ -185,7 +185,11 @@ final class PackageStore {
         var args = ["install"]
         if kind == .cask { args.append("--cask") }
         args.append(name)
-        await console.runBrew(title: "Install \(name)", arguments: args)
+        await console.runBrew(
+            title: "Install \(name)",
+            arguments: args,
+            subjects: [BrewPackage.makeID(kind: kind, name: name)]
+        )
         await refresh()
     }
 
@@ -194,20 +198,23 @@ final class PackageStore {
     }
 
     func uninstall(_ packages: [BrewPackage], zap: Bool = false) async {
-        let formulaNames = packages.filter { $0.kind == .formula }.map(\.name)
-        let caskNames = packages.filter { $0.kind == .cask }.map(\.name)
-        if !formulaNames.isEmpty {
+        let formulae = packages.filter { $0.kind == .formula }
+        let casks = packages.filter { $0.kind == .cask }
+        if !formulae.isEmpty {
+            let names = formulae.map(\.name)
             await console.runBrew(
-                title: "Uninstall \(formulaNames.joined(separator: ", "))",
-                arguments: ["uninstall"] + formulaNames
+                title: "Uninstall \(names.joined(separator: ", "))",
+                arguments: ["uninstall"] + names,
+                subjects: formulae.map(\.id)
             )
         }
-        if !caskNames.isEmpty {
+        if !casks.isEmpty {
             var args = ["uninstall", "--cask"]
             if zap { args.append("--zap") }
             await console.runBrew(
-                title: "Uninstall \(caskNames.joined(separator: ", "))",
-                arguments: args + caskNames
+                title: "Uninstall \(casks.map(\.name).joined(separator: ", "))",
+                arguments: args + casks.map(\.name),
+                subjects: casks.map(\.id)
             )
         }
         await refresh()
@@ -216,30 +223,40 @@ final class PackageStore {
     func upgrade(_ packages: [BrewPackage]) async {
         guard !packages.isEmpty else { return }
         let caskPackages = packages.filter { $0.kind == .cask }
-        await closeRunningAppsIfEnabled(for: caskPackages)
+        let appPaths = Self.appPathsForClosing(caskPackages)
 
-        let formulaNames = packages.filter { $0.kind == .formula }.map(\.name)
-        let caskNames = caskPackages.map(\.name)
-        if !formulaNames.isEmpty {
+        let formulae = packages.filter { $0.kind == .formula }
+        if !formulae.isEmpty {
+            let names = formulae.map(\.name)
             await console.runBrew(
-                title: "Upgrade \(formulaNames.count == 1 ? formulaNames[0] : "\(formulaNames.count) formulae")",
-                arguments: ["upgrade"] + formulaNames
+                title: "Upgrade \(names.count == 1 ? names[0] : "\(names.count) formulae")",
+                arguments: ["upgrade"] + names,
+                subjects: formulae.map(\.id)
             )
         }
-        if !caskNames.isEmpty {
+        if !caskPackages.isEmpty {
+            let names = caskPackages.map(\.name)
             await console.runBrew(
-                title: "Upgrade \(caskNames.count == 1 ? caskNames[0] : "\(caskNames.count) casks")",
-                arguments: ["upgrade", "--cask"] + caskNames
+                title: "Upgrade \(names.count == 1 ? names[0] : "\(names.count) casks")",
+                arguments: ["upgrade", "--cask"] + names,
+                subjects: caskPackages.map(\.id),
+                preflight: { await Self.closeRunningApps(atPaths: appPaths) }
             )
         }
         await refresh()
     }
 
     func upgradeAll() async {
-        await closeRunningAppsIfEnabled(for: outdatedPackages.filter { $0.kind == .cask })
+        let outdated = outdatedPackages
+        let appPaths = Self.appPathsForClosing(outdated.filter { $0.kind == .cask })
         var args = ["upgrade"]
         if UserDefaults.standard.bool(forKey: Prefs.greedyCasks) { args.append("--greedy") }
-        await console.runBrew(title: "Upgrade all packages", arguments: args)
+        await console.runBrew(
+            title: "Upgrade all packages",
+            arguments: args,
+            subjects: outdated.map(\.id),
+            preflight: { await Self.closeRunningApps(atPaths: appPaths) }
+        )
         await refresh()
     }
 
@@ -248,7 +265,8 @@ final class PackageStore {
         await console.runBrew(
             title: pinned ? "Pin \(package.name)" : "Unpin \(package.name)",
             arguments: [pinned ? "pin" : "unpin", package.name],
-            presentConsole: false
+            presentConsole: false,
+            subjects: [package.id]
         )
         await refresh()
     }
@@ -260,19 +278,25 @@ final class PackageStore {
 
     // MARK: Running app handling
 
-    private func closeRunningAppsIfEnabled(for caskPackages: [BrewPackage]) async {
-        guard UserDefaults.standard.bool(forKey: Prefs.closeAppsBeforeUpgrade), !caskPackages.isEmpty else { return }
-        let appPaths = Set(caskPackages.compactMap(\.appPath))
-        guard !appPaths.isEmpty else { return }
+    nonisolated static func appPathsForClosing(_ caskPackages: [BrewPackage]) -> Set<String> {
+        guard UserDefaults.standard.bool(forKey: Prefs.closeAppsBeforeUpgrade) else { return [] }
+        return Set(caskPackages.compactMap(\.appPath))
+    }
 
-        let running = NSWorkspace.shared.runningApplications.filter { app in
-            guard let path = app.bundleURL?.path else { return false }
-            return appPaths.contains(path)
+    /// Runs as a queue preflight: closes apps just before their upgrade executes,
+    /// not while the operation is still waiting in line.
+    nonisolated static func closeRunningApps(atPaths appPaths: Set<String>) async {
+        guard !appPaths.isEmpty else { return }
+        let running = await MainActor.run {
+            NSWorkspace.shared.runningApplications.filter { app in
+                guard let path = app.bundleURL?.path else { return false }
+                return appPaths.contains(path)
+            }
         }
         guard !running.isEmpty else { return }
 
         for app in running {
-            app.terminate()
+            _ = app.terminate()
         }
         // Wait up to 8 seconds for a clean exit.
         for _ in 0..<16 {

@@ -43,17 +43,17 @@ final class ServicesStore {
     }
 
     func start(_ name: String) async {
-        await console.runBrew(title: "Start service \(name)", arguments: ["services", "start", name])
+        await console.runBrew(title: "Start service \(name)", arguments: ["services", "start", name], subjects: ["service:\(name)"])
         await refresh()
     }
 
     func stop(_ name: String) async {
-        await console.runBrew(title: "Stop service \(name)", arguments: ["services", "stop", name])
+        await console.runBrew(title: "Stop service \(name)", arguments: ["services", "stop", name], subjects: ["service:\(name)"])
         await refresh()
     }
 
     func restart(_ name: String) async {
-        await console.runBrew(title: "Restart service \(name)", arguments: ["services", "restart", name])
+        await console.runBrew(title: "Restart service \(name)", arguments: ["services", "restart", name], subjects: ["service:\(name)"])
         await refresh()
     }
 }

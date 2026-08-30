@@ -225,12 +225,15 @@ private struct SearchResultRow: View {
                     .font(.caption)
                     .foregroundStyle(.green)
                     .labelStyle(.titleAndIcon)
+            } else if app.console.isPending(subject: package.id) {
+                Label("Queued", systemImage: "clock")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             } else {
                 Button("Install") {
                     Task { await app.packages.install(package) }
                 }
                 .controlSize(.small)
-                .disabled(app.console.isBusy)
             }
         }
         .padding(.vertical, 2)

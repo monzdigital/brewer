@@ -131,6 +131,11 @@ private struct DiscoverCard: View {
                     .font(.caption)
                     .foregroundStyle(.green)
                     .padding(.top, 8)
+            } else if app.console.isPending(subject: BrewPackage.makeID(kind: item.kind, name: item.token)) {
+                Label("Queued", systemImage: "clock")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 8)
             } else {
                 Button("Install") {
                     Task { await app.packages.install(name: item.token, kind: item.kind) }
@@ -138,7 +143,6 @@ private struct DiscoverCard: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .padding(.top, 6)
-                .disabled(app.console.isBusy)
             }
         }
         .cardStyle()

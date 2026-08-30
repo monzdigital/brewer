@@ -229,29 +229,34 @@ private struct ServiceRowView: View {
                     .truncationMode(.middle)
                     .frame(maxWidth: 260, alignment: .trailing)
             }
-            HStack(spacing: 6) {
-                if service.isRunning {
-                    Button {
-                        Task { await app.services.stop(service.name) }
-                    } label: {
-                        Label("Stop", systemImage: "stop.fill")
-                    }
-                    Button {
-                        Task { await app.services.restart(service.name) }
-                    } label: {
-                        Label("Restart", systemImage: "arrow.clockwise")
-                    }
-                } else {
-                    Button {
-                        Task { await app.services.start(service.name) }
-                    } label: {
-                        Label("Start", systemImage: "play.fill")
+            if app.console.isPending(subject: "service:\(service.name)") {
+                ProgressView()
+                    .controlSize(.small)
+                    .help("Queued")
+            } else {
+                HStack(spacing: 6) {
+                    if service.isRunning {
+                        Button {
+                            Task { await app.services.stop(service.name) }
+                        } label: {
+                            Label("Stop", systemImage: "stop.fill")
+                        }
+                        Button {
+                            Task { await app.services.restart(service.name) }
+                        } label: {
+                            Label("Restart", systemImage: "arrow.clockwise")
+                        }
+                    } else {
+                        Button {
+                            Task { await app.services.start(service.name) }
+                        } label: {
+                            Label("Start", systemImage: "play.fill")
+                        }
                     }
                 }
+                .controlSize(.small)
+                .labelStyle(.titleOnly)
             }
-            .controlSize(.small)
-            .labelStyle(.titleOnly)
-            .disabled(app.console.isBusy)
         }
         .padding(.vertical, 4)
     }
