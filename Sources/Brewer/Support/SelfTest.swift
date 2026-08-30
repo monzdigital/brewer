@@ -130,6 +130,12 @@ enum SelfTestRunner {
         // 14. Installer helpers
         check("installer: sanitizes names", AppUpdateInstaller.sanitized("A/B:C") == "A-B-C")
 
+        // 15. sudo askpass helper
+        let askpass = AskPass.ensureInstalled()
+        check("askpass helper installs", askpass != nil
+              && FileManager.default.isExecutableFile(atPath: askpass ?? ""),
+              detail: askpass ?? "-")
+
         return failures
     }
 }

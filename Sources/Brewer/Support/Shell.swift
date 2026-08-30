@@ -49,6 +49,11 @@ enum Shell {
         environment["TERM"] = "dumb"
         environment["HOMEBREW_NO_ENV_HINTS"] = "1"
         environment["HOMEBREW_NO_EMOJI"] = "1"
+        // Let sudo-needing children (mas, pkg installers) prompt via the native
+        // macOS dialog instead of failing with "a terminal is required".
+        if environment["SUDO_ASKPASS"] == nil, let askpass = AskPass.ensureInstalled() {
+            environment["SUDO_ASKPASS"] = askpass
+        }
         for (key, value) in extraEnvironment { environment[key] = value }
         process.environment = environment
 
