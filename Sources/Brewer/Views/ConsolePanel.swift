@@ -1,26 +1,35 @@
 import SwiftUI
 
-/// Live command output: operation list on the left, streaming output on the right.
+/// Live command output docked at the bottom of the window:
+/// operation list on the left, streaming output on the right.
 struct ConsolePanel: View {
     @Environment(AppState.self) private var app
 
     var body: some View {
-        @Bindable var console = app.console
+        let console = app.console
         VStack(spacing: 0) {
-            HStack {
+            HStack(spacing: 10) {
                 Label("Console", systemImage: "terminal")
-                    .font(.headline)
+                    .font(.callout.weight(.semibold))
+                if console.isBusy {
+                    ProgressView().controlSize(.mini)
+                }
                 Spacer()
                 Button("Clear Finished") {
                     console.clearFinished()
                 }
+                .controlSize(.small)
                 .disabled(console.operations.allSatisfy { $0.state == .running })
-                Button("Close") {
+                Button {
                     console.isPresented = false
+                } label: {
+                    Image(systemName: "chevron.down")
                 }
-                .keyboardShortcut(.cancelAction)
+                .controlSize(.small)
+                .help("Hide console (⌘L)")
             }
-            .padding(12)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
             Divider()
 
             if console.operations.isEmpty {
@@ -31,15 +40,16 @@ struct ConsolePanel: View {
                 )
                 .frame(maxHeight: .infinity)
             } else {
-                HSplitView {
+                HStack(spacing: 0) {
                     operationList
-                        .frame(minWidth: 200, idealWidth: 230, maxWidth: 300)
+                        .frame(width: 240)
+                    Divider()
                     outputPane
-                        .frame(minWidth: 400, maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
         }
-        .frame(width: 860, height: 520)
+        .background(.background)
     }
 
     private var operationList: some View {

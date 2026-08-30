@@ -18,11 +18,13 @@ struct UpdatesView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            HSplitView {
+            HStack(spacing: 0) {
                 listColumn
-                    .frame(minWidth: 400, idealWidth: 560, maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Divider()
                 detailColumn
-                    .frame(minWidth: 320, idealWidth: 400, maxWidth: 520)
+                    .frame(width: 380)
+                    .frame(maxHeight: .infinity)
             }
         }
         .navigationTitle("Updates")

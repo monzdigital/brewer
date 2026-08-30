@@ -4,19 +4,22 @@ struct RootView: View {
     @Environment(AppState.self) private var app
 
     var body: some View {
-        @Bindable var console = app.console
         NavigationSplitView {
             SidebarView()
                 .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
         } detail: {
-            detailView(for: app.selection ?? .installed)
-                .overlay(alignment: .bottomTrailing) {
-                    RunningOperationPill()
+            VStack(spacing: 0) {
+                detailView(for: app.selection ?? .installed)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if app.console.isPresented {
+                    Divider()
+                    ConsolePanel()
+                        .frame(height: 280)
                 }
-        }
-        .sheet(isPresented: $console.isPresented) {
-            ConsolePanel()
-                .environment(app)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                RunningOperationPill()
+            }
         }
         .navigationTitle("Brewer")
     }

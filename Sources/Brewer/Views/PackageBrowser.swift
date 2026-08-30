@@ -56,11 +56,13 @@ struct PackageBrowserView: View {
     }
 
     var body: some View {
-        HSplitView {
+        HStack(spacing: 0) {
             listColumn
-                .frame(minWidth: 400, idealWidth: 560, maxWidth: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Divider()
             detailColumn
-                .frame(minWidth: 320, idealWidth: 400, maxWidth: 520)
+                .frame(width: 380)
+                .frame(maxHeight: .infinity)
         }
         .navigationTitle(title)
         .navigationSubtitle("\(filteredPackages.count) packages")

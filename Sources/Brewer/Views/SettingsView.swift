@@ -19,13 +19,11 @@ struct SettingsView: View {
 // MARK: - General
 
 private struct GeneralSettings: View {
-    @AppStorage(Prefs.menuBarEnabled) private var menuBarEnabled = true
     @AppStorage(Prefs.autoOpenConsole) private var autoOpenConsole = true
     @AppStorage(Prefs.compactRows) private var compactRows = false
 
     var body: some View {
         Form {
-            Toggle("Show menu bar icon", isOn: $menuBarEnabled)
             Text("The menu bar icon shows how many packages are outdated at a glance.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

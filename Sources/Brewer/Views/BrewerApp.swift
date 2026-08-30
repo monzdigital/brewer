@@ -16,7 +16,6 @@ enum BrewerEntry {
 struct BrewerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var appState = AppState()
-    @AppStorage(Prefs.menuBarEnabled) private var menuBarEnabled = true
 
     var body: some Scene {
         WindowGroup("Brewer", id: "main") {
@@ -38,19 +37,18 @@ struct BrewerApp: App {
                 }
                 .keyboardShortcut("u", modifiers: [.command, .shift])
 
-                Button("Show Console") {
-                    appState.console.isPresented = true
+                Button("Toggle Console") {
+                    appState.console.isPresented.toggle()
                 }
                 .keyboardShortcut("l", modifiers: .command)
             }
         }
-
         Settings {
             SettingsView()
                 .environment(appState)
         }
 
-        MenuBarExtra(isInserted: $menuBarEnabled) {
+        MenuBarExtra {
             MenuBarContent()
                 .environment(appState)
         } label: {
@@ -90,13 +88,13 @@ private struct MenuBarLabel: View {
     @Environment(AppState.self) private var app
 
     var body: some View {
+        // Keep the structure constant (always Image + Text). NOTE: never pass
+        // `isInserted:` to MenuBarExtra — on macOS 26 an isInserted binding sends
+        // the scene graph into a permanent 100% CPU rebuild loop
+        // (AppGraph.graphDidChange -> makeMainMenu -> invalidate -> repeat).
         let count = app.visibleUpdateCount
-        if count > 0 {
-            Image(systemName: "mug.fill")
-            Text("\(count)")
-        } else {
-            Image(systemName: "mug")
-        }
+        Image(systemName: count > 0 ? "mug.fill" : "mug")
+        Text(verbatim: count > 0 ? String(count) : "")
     }
 }
 
