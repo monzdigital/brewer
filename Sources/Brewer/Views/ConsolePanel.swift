@@ -62,7 +62,7 @@ struct ConsolePanel: View {
                         Text(operation.title)
                             .font(.callout)
                             .lineLimit(1)
-                        Text(operation.startedAt.formatted(date: .omitted, time: .standard))
+                        Text(operation.enqueuedAt.formatted(date: .omitted, time: .standard))
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
@@ -76,6 +76,8 @@ struct ConsolePanel: View {
     @ViewBuilder
     private func stateIcon(for state: TaskConsole.OperationState) -> some View {
         switch state {
+        case .queued:
+            Image(systemName: "clock").foregroundStyle(.secondary)
         case .running:
             ProgressView().controlSize(.small)
         case .succeeded:
@@ -113,6 +115,21 @@ struct ConsolePanel: View {
                 .padding(.vertical, 8)
                 Divider()
 
+                if operation.state == .queued {
+                    VStack(spacing: 6) {
+                        Image(systemName: "clock")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                        Text("Queued - waiting for the operation ahead to finish.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Text("Homebrew runs one command at a time.")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black.opacity(0.25))
+                } else {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 1) {
@@ -138,6 +155,7 @@ struct ConsolePanel: View {
                             proxy.scrollTo(last.id, anchor: .bottom)
                         }
                     }
+                }
                 }
 
                 Divider()
@@ -174,6 +192,10 @@ struct ConsolePanel: View {
     @ViewBuilder
     private func statusLabel(for operation: TaskConsole.Operation) -> some View {
         switch operation.state {
+        case .queued:
+            Label("Queued", systemImage: "clock")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
         case .running:
             Label("Running…", systemImage: "circle.dotted")
                 .font(.caption.weight(.medium))

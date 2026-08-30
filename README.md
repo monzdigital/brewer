@@ -7,6 +7,10 @@ brew commands, so your setup stays portable, familiar, and fully yours.
 **🌐 Website: [monzdigital.github.io/brewer](https://monzdigital.github.io/brewer/) ·
 ⬇️ [Download the latest release](https://github.com/monzdigital/brewer/releases/latest/download/Brewer-1.0.0.zip)**
 
+```bash
+brew install --cask monzdigital/tap/brewer
+```
+
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![Swift 5](https://img.shields.io/badge/Swift-5.9-orange) ![Free](https://img.shields.io/badge/price-free-brightgreen)
 
 > Early build, not yet notarized - on first launch right-click the app → Open,

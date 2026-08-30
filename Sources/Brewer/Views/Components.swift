@@ -223,6 +223,9 @@ struct RunningOperationPill: View {
                     Text(operation.title)
                         .font(.callout)
                         .lineLimit(1)
+                    if app.console.queuedCount > 0 {
+                        TinyBadge(text: "+\(app.console.queuedCount) queued", color: .secondary)
+                    }
                     Image(systemName: "chevron.up")
                         .font(.caption2)
                         .foregroundStyle(.secondary)

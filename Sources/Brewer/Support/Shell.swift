@@ -12,7 +12,9 @@ struct ShellResult: Sendable {
 }
 
 enum ShellEvent: Sendable {
-    case output(line: String, isError: Bool)
+    /// `overwritesPrevious` carries terminal \r semantics: the line replaces the
+    /// previously emitted line (curl/brew progress bars redraw in place).
+    case output(line: String, isError: Bool, overwritesPrevious: Bool)
     case finished(Int32)
 }
 
@@ -60,7 +62,7 @@ enum Shell {
             do {
                 try process.run()
             } catch {
-                continuation.yield(.output(line: "Failed to launch \(executablePath): \(error.localizedDescription)", isError: true))
+                continuation.yield(.output(line: "Failed to launch \(executablePath): \(error.localizedDescription)", isError: true, overwritesPrevious: false))
                 continuation.yield(.finished(-1))
                 continuation.finish()
                 return
@@ -85,8 +87,9 @@ enum Shell {
     }
 
     /// Blocking line reader on a background queue. Splits incoming chunks on
-    /// newlines in O(n), carrying partial lines (a 1 MB single-line JSON payload
-    /// arrives as one line at EOF).
+    /// \n AND \r in O(n), carrying partial lines (a 1 MB single-line JSON payload
+    /// arrives as one line at EOF). A segment terminated by \r marks the NEXT
+    /// segment as overwriting it, so progress bars redraw instead of flooding.
     private static func pump(
         _ handle: FileHandle,
         isError: Bool,
@@ -95,20 +98,27 @@ enum Shell {
     ) {
         DispatchQueue.global(qos: .userInitiated).async {
             var carry = Data()
-            func emit(_ data: Data) {
+            var nextOverwrites = false
+            func emit(_ data: Data, terminator: UInt8?) {
                 let line = String(decoding: data, as: UTF8.self).strippingANSICodes
-                continuation.yield(.output(line: line, isError: isError))
+                // Skip the empty segment of a "\r\n" pair.
+                if line.isEmpty && terminator == 0x0A && nextOverwrites {
+                    nextOverwrites = false
+                    return
+                }
+                continuation.yield(.output(line: line, isError: isError, overwritesPrevious: nextOverwrites))
+                nextOverwrites = terminator == 0x0D
             }
             while true {
                 let data = handle.availableData
                 if data.isEmpty { break } // EOF
                 var start = data.startIndex
-                for index in data.indices where data[index] == 0x0A {
+                for index in data.indices where data[index] == 0x0A || data[index] == 0x0D {
                     if carry.isEmpty {
-                        emit(data.subdata(in: start..<index))
+                        emit(data.subdata(in: start..<index), terminator: data[index])
                     } else {
                         carry.append(data.subdata(in: start..<index))
-                        emit(carry)
+                        emit(carry, terminator: data[index])
                         carry.removeAll(keepingCapacity: true)
                     }
                     start = data.index(after: index)
@@ -117,7 +127,7 @@ enum Shell {
                     carry.append(data.subdata(in: start..<data.endIndex))
                 }
             }
-            if !carry.isEmpty { emit(carry) }
+            if !carry.isEmpty { emit(carry, terminator: nil) }
             try? handle.close()
             completion()
         }
@@ -135,8 +145,12 @@ enum Shell {
         var code: Int32 = -1
         for await event in handle.events {
             switch event {
-            case .output(let line, let isError):
-                if isError { err.append(line) } else { out.append(line) }
+            case .output(let line, let isError, let overwrites):
+                if isError {
+                    if overwrites && !err.isEmpty { err[err.count - 1] = line } else { err.append(line) }
+                } else {
+                    if overwrites && !out.isEmpty { out[out.count - 1] = line } else { out.append(line) }
+                }
             case .finished(let exitCode):
                 code = exitCode
             }

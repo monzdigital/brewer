@@ -13,12 +13,13 @@ final class TaskConsole {
     }
 
     enum OperationState: Equatable {
+        case queued
         case running
         case succeeded
         case failed(Int32)
         case cancelled
 
-        var isFinished: Bool { self != .running }
+        var isFinished: Bool { self != .running && self != .queued }
     }
 
     @Observable
@@ -26,18 +27,21 @@ final class TaskConsole {
         let id = UUID()
         let title: String
         let commandLine: String
-        let startedAt = Date()
+        let enqueuedAt = Date()
+        var startedAt: Date?
         var finishedAt: Date?
         var lines: [OutputLine] = []
-        var state: OperationState = .running
+        var state: OperationState = .queued
 
         init(title: String, commandLine: String) {
             self.title = title
             self.commandLine = commandLine
         }
 
+        /// Time actually spent executing (queued time excluded).
         var duration: Double {
-            (finishedAt ?? Date()).timeIntervalSince(startedAt)
+            guard let startedAt else { return 0 }
+            return (finishedAt ?? Date()).timeIntervalSince(startedAt)
         }
     }
 
@@ -55,7 +59,11 @@ final class TaskConsole {
         operations.last { $0.state == .running }
     }
 
-    var isBusy: Bool { runningOperation != nil }
+    var queuedCount: Int {
+        operations.count { $0.state == .queued }
+    }
+
+    var isBusy: Bool { operations.contains { !$0.state.isFinished } }
 
     var selectedOperation: Operation? {
         guard let id = selectedOperationID else { return operations.last }
@@ -108,15 +116,23 @@ final class TaskConsole {
         }
 
         let exitCode: Int32 = await queue.enqueue { [weak self] in
+            await MainActor.run {
+                operation.state = .running
+                operation.startedAt = Date()
+            }
             let handle = Shell.launch(executablePath, arguments, extraEnvironment: extraEnvironment)
             await MainActor.run { self?.handles[operation.id] = handle }
             var code: Int32 = -1
-            var pending: [OutputLine] = []
+            var pending: [PendingLine] = []
             var lastFlush = Date()
             for await event in handle.events {
                 switch event {
-                case .output(let line, let isError):
-                    pending.append(OutputLine(text: line, isError: isError))
+                case .output(let line, let isError, let overwrites):
+                    if overwrites, let last = pending.indices.last {
+                        pending[last] = PendingLine(text: line, isError: isError, overwritesPrevious: pending[last].overwritesPrevious)
+                    } else {
+                        pending.append(PendingLine(text: line, isError: isError, overwritesPrevious: overwrites))
+                    }
                     if pending.count >= 20 || Date().timeIntervalSince(lastFlush) > 0.15 {
                         let batch = pending
                         pending = []
@@ -146,8 +162,20 @@ final class TaskConsole {
         return exitCode == 0
     }
 
-    private func append(_ batch: [OutputLine], to operation: Operation) {
-        operation.lines.append(contentsOf: batch)
+    struct PendingLine: Sendable {
+        let text: String
+        let isError: Bool
+        let overwritesPrevious: Bool
+    }
+
+    private func append(_ batch: [PendingLine], to operation: Operation) {
+        for line in batch {
+            if line.overwritesPrevious, !operation.lines.isEmpty {
+                operation.lines[operation.lines.count - 1] = OutputLine(text: line.text, isError: line.isError)
+            } else {
+                operation.lines.append(OutputLine(text: line.text, isError: line.isError))
+            }
+        }
         if operation.lines.count > 6000 {
             operation.lines.removeFirst(operation.lines.count - 5000)
         }

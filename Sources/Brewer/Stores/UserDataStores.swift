@@ -194,7 +194,7 @@ final class HistoryStore {
 
     func record(_ operation: TaskConsole.Operation) {
         let entry = HistoryEntry(
-            date: operation.startedAt,
+            date: operation.startedAt ?? operation.enqueuedAt,
             title: operation.title,
             command: operation.commandLine,
             succeeded: operation.state == .succeeded,
