@@ -32,6 +32,15 @@ da budur.
 - [x] GitHub Pages sitesi: https://monzdigital.github.io/brewer/ (`docs/` klasöründen)
 - [x] Sitedeki indirme butonu `releases/latest/download/…` kalıcı linkine bağlı
 
+### 🚨 Gatekeeper sorununun TÜM kullanıcılar için tek gerçek çözümü: NOTARIZASYON
+macOS 15+ "sağ tık → Aç" atlatmasını kaldırdı; imzasız uygulama her kullanıcıda
+"Çöp Sepeti'ne Taşı / Bitti" diyaloguna takılıyor. Bunu evrensel olarak yalnızca
+Developer ID imzası + Apple notarizasyonu çözer - o zaman uygulama ilk tıkta,
+uyarısız açılır. Altyapı hazır (release.sh), eksik yalnızca hesap adımları
+(aşağıda). Notarizasyon gelene kadar geçici hafifletmeler uygulandı:
+site/README/cask "Open Anyway" akışını anlatıyor ve brew komutu
+--no-quarantine öneriyor (bu bayrak diyaloğu tamamen atlar).
+
 ### Kullanıcının yapması gerekenler (hesap gerektirir)
 - [ ] Apple Developer Program üyeliği (99 USD/yıl) - https://developer.apple.com/programs/
 - [ ] "Developer ID Application" sertifikası oluşturup Keychain'e yüklemek
