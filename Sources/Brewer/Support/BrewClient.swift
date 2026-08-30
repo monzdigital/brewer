@@ -174,9 +174,11 @@ struct BrewClient: Sendable {
         return names
     }
 
-    func multiVersionFormulae() async -> [(name: String, versions: [String])] {
+    /// Returns nil when the command itself failed (e.g. Xcode license not accepted),
+    /// so callers can keep their previous data instead of showing a false "all clean".
+    func multiVersionFormulae() async -> [(name: String, versions: [String])]? {
         let result = await Shell.runBrew(["list", "--formula", "--versions"])
-        guard result.succeeded else { return [] }
+        guard result.succeeded else { return nil }
         return result.stdout.split(separator: "\n").compactMap { line in
             let parts = line.split(separator: " ").map(String.init)
             guard parts.count > 2 else { return nil }

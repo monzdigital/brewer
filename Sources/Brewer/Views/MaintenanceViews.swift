@@ -436,7 +436,12 @@ struct DuplicatesView: View {
             .padding(12)
             Divider()
 
-            if app.duplicates.isLoading {
+            if let error = app.duplicates.errorMessage {
+                Spacer()
+                ContentUnavailableView("Couldn't scan", systemImage: "exclamationmark.triangle",
+                    description: Text(error))
+                Spacer()
+            } else if app.duplicates.isLoading {
                 Spacer()
                 ProgressView("Scanning…")
                 Spacer()

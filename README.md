@@ -87,6 +87,19 @@ For signed, notarized, universal (arm64+x86_64) builds for distribution, see
 forbids running brew and managing other apps; Developer ID + notarization is
 the supported path, same as Cork/Cakebrew/AppCleaner.)
 
+## Website
+
+A self-contained landing page lives in `site/` — `index.html` (screenshots
+inlined, ~2.5 MB) plus the downloadable `Brewer-1.0.0.zip` next to it. Host the
+two files anywhere (GitHub Pages works as-is).
+
+To refresh the screenshots after UI changes and rebuild the page:
+
+```bash
+./dist/Brewer.app/Contents/MacOS/Brewer --tour-shots /tmp/shots   # captures every page
+python3 site/build-site.py /tmp/shots
+```
+
 ## Verify the data layer
 
 The binary ships with a headless self-test that exercises JSON decoding,

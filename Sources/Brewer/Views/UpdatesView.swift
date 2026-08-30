@@ -102,26 +102,10 @@ struct UpdatesView: View {
                         .tag(package.id)
                         .contextMenu {
                             PackageContextMenu(package: package)
-                            Divider()
-                            snoozeMenu(for: package)
                         }
                 }
             }
             .listStyle(.inset)
-        }
-    }
-
-    private func snoozeMenu(for package: BrewPackage) -> some View {
-        Menu("Snooze") {
-            Button("For 1 day") {
-                app.meta.snooze(package.id, until: Date().addingTimeInterval(86_400), version: nil)
-            }
-            Button("For 1 week") {
-                app.meta.snooze(package.id, until: Date().addingTimeInterval(7 * 86_400), version: nil)
-            }
-            Button("Skip this version (\(package.latestVersion ?? "current"))") {
-                app.meta.snooze(package.id, until: nil, version: package.latestVersion)
-            }
         }
     }
 

@@ -1,0 +1,720 @@
+<meta charset="utf-8">
+<title>Brewer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍺</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Brewer is a free, native macOS app that turns Homebrew into point-and-click — browse, install, update, clean up, and watch every brew command run live.">
+
+<style>
+  :root {
+    --malt: #0d0b08;
+    --stout: #17130d;
+    --keg: #1f1a12;
+    --foam: #f2e9dc;
+    --foam-dim: rgba(242, 233, 220, 0.62);
+    --foam-faint: rgba(242, 233, 220, 0.38);
+    --amber: #e8a33d;
+    --amber-deep: #b4622d;
+    --sage: #7fb069;
+    --line: rgba(242, 233, 220, 0.09);
+    --line-strong: rgba(242, 233, 220, 0.16);
+    --radius: 14px;
+    --display: "Bricolage Grotesque", "Avenir Next", "Helvetica Neue", sans-serif;
+    --body: "Figtree", "Avenir", "Helvetica Neue", sans-serif;
+    --mono: "IBM Plex Mono", "SF Mono", Menlo, monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--malt);
+    color: var(--foam);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  ::selection { background: rgba(232, 163, 61, 0.35); }
+
+  a { color: var(--amber); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+  /* ── Nav ─────────────────────────────────────── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    background: rgba(13, 11, 8, 0.72);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-inner {
+    max-width: 1120px; margin: 0 auto; padding: 14px 24px;
+    display: flex; align-items: center; gap: 28px;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--display); font-weight: 800; font-size: 20px;
+    color: var(--foam); letter-spacing: -0.02em;
+  }
+  .logo:hover { text-decoration: none; }
+  .logo-mark {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(160deg, var(--amber), var(--amber-deep));
+    display: grid; place-items: center; font-size: 17px;
+    box-shadow: 0 2px 10px rgba(232, 163, 61, 0.35);
+  }
+  .nav-links { display: flex; gap: 22px; margin-left: auto; align-items: center; }
+  .nav-links a { color: var(--foam-dim); font-size: 14px; font-weight: 500; }
+  .nav-links a:hover { color: var(--foam); text-decoration: none; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-family: var(--body); font-weight: 600; font-size: 15px;
+    padding: 10px 20px; border-radius: 10px; border: none; cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  }
+  .btn-amber {
+    background: linear-gradient(160deg, #f0b45a, var(--amber) 55%, #d18a28);
+    color: #241503;
+    box-shadow: 0 4px 18px rgba(232, 163, 61, 0.3);
+  }
+  .btn-amber:hover { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(232, 163, 61, 0.42); text-decoration: none; }
+  .btn-ghost {
+    background: transparent; color: var(--foam);
+    border: 1px solid var(--line-strong);
+  }
+  .btn-ghost:hover { background: rgba(242, 233, 220, 0.06); text-decoration: none; }
+  .btn-big { font-size: 17px; padding: 15px 30px; border-radius: 13px; }
+  nav .btn { padding: 8px 16px; font-size: 14px; }
+
+  /* ── Hero ────────────────────────────────────── */
+  header {
+    position: relative;
+    padding: 150px 0 0;
+    overflow: hidden;
+  }
+  #bubbles {
+    position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  }
+  .hero-glow {
+    position: absolute; z-index: 0; pointer-events: none;
+    width: 900px; height: 900px; border-radius: 50%;
+    left: 50%; top: -320px; transform: translateX(-50%);
+    background: radial-gradient(circle, rgba(232, 163, 61, 0.13) 0%, rgba(180, 98, 45, 0.05) 45%, transparent 70%);
+  }
+  .hero-inner { position: relative; z-index: 1; text-align: center; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 12.5px; font-weight: 500;
+    letter-spacing: 0.08em; color: var(--sage);
+    border: 1px solid rgba(127, 176, 105, 0.35);
+    background: rgba(127, 176, 105, 0.08);
+    padding: 6px 14px; border-radius: 100px;
+    margin-bottom: 26px;
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sage); animation: pulse 2.2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.3 } }
+  h1 {
+    font-family: var(--display);
+    font-size: clamp(44px, 7.2vw, 84px);
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+    max-width: 880px; margin: 0 auto 22px;
+  }
+  h1 .pour {
+    background: linear-gradient(100deg, #f4c576, var(--amber) 45%, var(--amber-deep));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero-sub {
+    font-size: clamp(17px, 2vw, 20px); color: var(--foam-dim);
+    max-width: 620px; margin: 0 auto 34px; text-wrap: balance;
+  }
+  .hero-ctas { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; align-items: center; }
+  .hero-meta {
+    margin-top: 16px; font-size: 13.5px; color: var(--foam-faint);
+    display: flex; gap: 18px; justify-content: center; flex-wrap: wrap;
+  }
+  .hero-meta span { display: inline-flex; gap: 6px; align-items: center; }
+
+  /* Terminal card */
+  .terminal {
+    position: relative; z-index: 2;
+    width: min(560px, 92%); margin: 54px auto -8px;
+    background: #100d09;
+    border: 1px solid var(--line-strong);
+    border-radius: 12px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    text-align: left;
+    font-family: var(--mono); font-size: 13.5px; line-height: 1.75;
+  }
+  .term-bar {
+    display: flex; gap: 7px; padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .term-bar i { width: 11px; height: 11px; border-radius: 50%; display: block; }
+  .term-bar i:nth-child(1) { background: #f2564d; }
+  .term-bar i:nth-child(2) { background: #f5b53f; }
+  .term-bar i:nth-child(3) { background: #48c353; }
+  .term-body { padding: 16px 18px 18px; min-height: 118px; }
+  .term-body .ln { white-space: pre-wrap; word-break: break-word; }
+  .term-body .p { color: var(--sage); }
+  .term-body .c { color: var(--foam); }
+  .term-body .o { color: var(--foam-faint); }
+  .term-body .ok { color: var(--sage); }
+  .caret {
+    display: inline-block; width: 8px; height: 16px; vertical-align: -3px;
+    background: var(--foam); animation: blink 1s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0 } }
+
+  /* Hero screenshot */
+  .hero-shot {
+    position: relative; z-index: 1;
+    max-width: 1060px; margin: -46px auto 0; padding: 0 24px 96px;
+    perspective: 1400px;
+  }
+  .hero-shot .frame {
+    border-radius: 14px; overflow: hidden;
+    border: 1px solid var(--line-strong);
+    box-shadow:
+      0 50px 120px rgba(0, 0, 0, 0.6),
+      0 0 90px rgba(232, 163, 61, 0.12);
+    transform: rotateX(9deg) translateY(46px) scale(0.96);
+    opacity: 0;
+    transition: transform 1.1s cubic-bezier(0.19, 1, 0.22, 1), opacity 1.1s ease;
+  }
+  .hero-shot.poured .frame { transform: rotateX(0deg) translateY(0) scale(1); opacity: 1; }
+  .hero-shot img { display: block; width: 100%; height: auto; }
+
+  /* ── Stat strip ──────────────────────────────── */
+  .strip {
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    background: var(--stout);
+    overflow: hidden; padding: 15px 0;
+  }
+  .marquee { display: flex; gap: 56px; width: max-content; animation: slide 34s linear infinite; }
+  @keyframes slide { to { transform: translateX(-50%); } }
+  .marquee span {
+    font-family: var(--mono); font-size: 13px; color: var(--foam-dim);
+    display: inline-flex; align-items: center; gap: 10px; white-space: nowrap;
+  }
+  .marquee b { color: var(--amber); font-weight: 600; }
+
+  /* ── Sections ────────────────────────────────── */
+  section { padding: 104px 0; position: relative; }
+  .sec-label {
+    font-family: var(--mono); font-size: 12.5px; font-weight: 600;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--amber);
+    margin-bottom: 14px;
+  }
+  h2 {
+    font-family: var(--display); font-weight: 800;
+    font-size: clamp(30px, 4.4vw, 46px);
+    letter-spacing: -0.025em; line-height: 1.08;
+    text-wrap: balance; margin-bottom: 16px;
+  }
+  .sec-sub { color: var(--foam-dim); font-size: 17px; max-width: 560px; }
+
+  /* Alternating feature rows */
+  .feature-row {
+    display: grid; grid-template-columns: 5fr 6fr;
+    gap: 56px; align-items: center;
+    padding: 42px 0;
+  }
+  .feature-row.flip .f-copy { order: 2; }
+  .feature-row.flip .f-shot { order: 1; }
+  .f-copy .sec-label { margin-bottom: 10px; }
+  .f-copy h3 {
+    font-family: var(--display); font-weight: 700;
+    font-size: clamp(24px, 2.8vw, 32px);
+    letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 14px; text-wrap: balance;
+  }
+  .f-copy p { color: var(--foam-dim); font-size: 16px; margin-bottom: 14px; }
+  .f-list { list-style: none; display: grid; gap: 9px; margin-top: 6px; }
+  .f-list li { display: flex; gap: 11px; align-items: flex-start; color: var(--foam-dim); font-size: 15px; }
+  .f-list li::before {
+    content: ""; flex: none; width: 6px; height: 6px; border-radius: 2px;
+    background: var(--amber); margin-top: 8px;
+  }
+  .f-shot {
+    border-radius: var(--radius); overflow: hidden;
+    border: 1px solid var(--line-strong);
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
+    transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1), box-shadow 0.5s ease;
+  }
+  .f-shot:hover { transform: translateY(-6px) scale(1.012); box-shadow: 0 42px 90px rgba(0,0,0,0.6), 0 0 60px rgba(232,163,61,0.1); }
+  .f-shot img { display: block; width: 100%; height: auto; }
+
+  /* Screenshot tour tabs */
+  .tour { background: var(--stout); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .tour-head { text-align: center; max-width: 640px; margin: 0 auto 40px; }
+  .tour-head .sec-sub { margin: 0 auto; }
+  .tabs {
+    display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+    margin-bottom: 30px;
+  }
+  .tab {
+    font-family: var(--body); font-size: 14px; font-weight: 600;
+    color: var(--foam-dim); background: transparent;
+    border: 1px solid var(--line-strong); border-radius: 100px;
+    padding: 9px 18px; cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .tab:hover { color: var(--foam); border-color: var(--foam-faint); }
+  .tab.on {
+    color: #241503; background: var(--amber); border-color: var(--amber);
+    box-shadow: 0 3px 14px rgba(232, 163, 61, 0.3);
+  }
+  .stage {
+    position: relative; max-width: 1000px; margin: 0 auto;
+    border-radius: var(--radius); overflow: hidden;
+    border: 1px solid var(--line-strong);
+    box-shadow: 0 36px 90px rgba(0, 0, 0, 0.55);
+    aspect-ratio: 1280 / 828;
+  }
+  .stage img {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+    opacity: 0; transform: scale(1.025);
+    transition: opacity 0.55s ease, transform 0.9s cubic-bezier(0.19, 1, 0.22, 1);
+  }
+  .stage img.on { opacity: 1; transform: scale(1); }
+  .stage-cap {
+    text-align: center; margin-top: 18px;
+    font-size: 14.5px; color: var(--foam-faint);
+    min-height: 22px;
+  }
+
+  /* Feature grid */
+  .grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 48px;
+  }
+  .cell {
+    background: var(--keg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px 22px 20px;
+    transition: transform 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+  }
+  .cell:hover { transform: translateY(-4px); border-color: rgba(232, 163, 61, 0.4); background: #241d13; }
+  .cell .ico {
+    width: 38px; height: 38px; border-radius: 10px; margin-bottom: 14px;
+    display: grid; place-items: center; font-size: 18px;
+    background: rgba(232, 163, 61, 0.13);
+    border: 1px solid rgba(232, 163, 61, 0.25);
+  }
+  .cell h4 { font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: -0.01em; margin-bottom: 6px; }
+  .cell p { color: var(--foam-dim); font-size: 14px; line-height: 1.55; }
+  .cell code {
+    font-family: var(--mono); font-size: 12px; color: var(--sage);
+    background: rgba(127, 176, 105, 0.09); padding: 1px 6px; border-radius: 5px;
+  }
+
+  /* ── Download ────────────────────────────────── */
+  .dl {
+    position: relative; overflow: hidden;
+    background:
+      radial-gradient(700px 340px at 50% 0%, rgba(232, 163, 61, 0.14), transparent 65%),
+      var(--stout);
+    border-top: 1px solid var(--line);
+    text-align: center;
+  }
+  .dl h2 { margin-bottom: 12px; }
+  .dl .sec-sub { margin: 0 auto 36px; }
+  .dl-card {
+    display: inline-block;
+    background: var(--keg);
+    border: 1px solid rgba(232, 163, 61, 0.28);
+    border-radius: 20px;
+    padding: 38px 46px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+  }
+  .price {
+    font-family: var(--display); font-weight: 800;
+    font-size: 46px; letter-spacing: -0.03em; line-height: 1;
+  }
+  .price small { font-size: 16px; font-weight: 600; color: var(--sage); display: block; margin-top: 6px; letter-spacing: 0; }
+  .dl-card .btn-big { margin: 26px 0 18px; }
+  .dl-notes {
+    display: grid; gap: 6px; font-size: 13.5px; color: var(--foam-faint); text-align: center;
+  }
+  .dl-notes code { font-family: var(--mono); font-size: 12.5px; color: var(--foam-dim); }
+  .dl-alt { margin-top: 28px; font-size: 14px; color: var(--foam-faint); }
+  .dl-alt code {
+    font-family: var(--mono); font-size: 13px; color: var(--sage);
+    background: rgba(127, 176, 105, 0.09);
+    border: 1px solid rgba(127, 176, 105, 0.2);
+    padding: 4px 10px; border-radius: 7px;
+  }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 34px 0 44px;
+    color: var(--foam-faint); font-size: 13.5px;
+  }
+  .foot-inner {
+    max-width: 1120px; margin: 0 auto; padding: 0 24px;
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+  }
+  .foot-inner .logo { font-size: 16px; }
+  .foot-inner .logo-mark { width: 24px; height: 24px; font-size: 13px; border-radius: 6px; }
+  .foot-links { margin-left: auto; display: flex; gap: 18px; }
+  .foot-links a { color: var(--foam-faint); }
+  .foot-links a:hover { color: var(--foam); }
+
+  /* Scroll reveal */
+  .rv { opacity: 0; transform: translateY(26px); transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.19, 1, 0.22, 1); }
+  .rv.in { opacity: 1; transform: none; }
+
+  @media (max-width: 880px) {
+    .feature-row, .feature-row.flip { grid-template-columns: 1fr; gap: 26px; }
+    .feature-row.flip .f-copy { order: 1; }
+    .feature-row.flip .f-shot { order: 2; }
+    .grid { grid-template-columns: 1fr 1fr; }
+    .nav-links a:not(.btn) { display: none; }
+  }
+  @media (max-width: 560px) {
+    .grid { grid-template-columns: 1fr; }
+    .dl-card { padding: 30px 22px; width: 100%; }
+    section { padding: 72px 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .rv, .hero-shot .frame { opacity: 1 !important; transform: none !important; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+
+<nav>
+  <div class="nav-inner">
+    <a class="logo" href="#"><span class="logo-mark">🍺</span>Brewer</a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#tour">Screens</a>
+      <a href="#everything">Everything else</a>
+      <a class="btn btn-amber" href="#download">Download free</a>
+    </div>
+  </div>
+</nav>
+
+<header>
+  <canvas id="bubbles" aria-hidden="true"></canvas>
+  <div class="hero-glow"></div>
+  <div class="wrap hero-inner">
+    <span class="eyebrow"><span class="dot"></span>FREE · NATIVE · OPEN SETUP</span>
+    <h1>Homebrew, <span class="pour">poured into</span> a real Mac&nbsp;app</h1>
+    <p class="hero-sub">
+      Brewer turns brew commands into point-and-click — browse, install, update,
+      clean up, and watch every command run live. Without giving up the terminal
+      when you still want it.
+    </p>
+    <div class="hero-ctas">
+      <a class="btn btn-amber btn-big" href="#download">⬇&#xFE0E;&nbsp; Download for Mac — Free</a>
+      <a class="btn btn-ghost btn-big" href="#tour">See the screens</a>
+    </div>
+    <div class="hero-meta">
+      <span>macOS 14+</span>
+      <span>Apple Silicon &amp; Intel</span>
+      <span>5 MB — no accounts, no tracking</span>
+    </div>
+
+    <div class="terminal" aria-hidden="true">
+      <div class="term-bar"><i></i><i></i><i></i></div>
+      <div class="term-body" id="term"></div>
+    </div>
+  </div>
+
+  <div class="hero-shot" id="heroShot">
+    <div class="frame"><img src="{{SHOT:01-installed}}" alt="Brewer main window listing 203 installed Homebrew packages with a detail pane"></div>
+  </div>
+</header>
+
+<div class="strip" aria-hidden="true">
+  <div class="marquee" id="marquee">
+    <span><b>1:1</b> every action maps to a real brew command</span>
+    <span><b>Live</b> streaming command output</span>
+    <span><b>All apps</b> — Homebrew, App Store, Sparkle, manual</span>
+    <span><b>Battery-aware</b> background upgrades</span>
+    <span><b>Leftover-free</b> uninstalls, AppCleaner-style</span>
+    <span><b>Brewfile</b> import &amp; export</span>
+    <span><b>brew doctor</b> without the wall of text</span>
+  </div>
+</div>
+
+<section id="features">
+  <div class="wrap">
+    <div class="rv">
+      <div class="sec-label">Why Brewer</div>
+      <h2>Everything brew does, one click away</h2>
+      <p class="sec-sub">No mystery. Each button runs the exact brew command you would have typed — and shows you its output while it runs.</p>
+    </div>
+
+    <div class="feature-row rv">
+      <div class="f-copy">
+        <div class="sec-label">Updates</div>
+        <h3>See what's outdated. Upgrade it your way.</h3>
+        <p>133 packages behind? Upgrade everything, cherry-pick one, or snooze the noisy ones for a week.</p>
+        <ul class="f-list">
+          <li>Scheduled checks with notifications — every 6h, daily, or weekly</li>
+          <li>Automatic background upgrades that wait for AC power</li>
+          <li>Running apps are closed cleanly before their upgrade</li>
+          <li>The menu bar icon shows the outdated count at a glance</li>
+        </ul>
+      </div>
+      <div class="f-shot"><img src="{{SHOT:02-updates}}" alt="Updates screen with 133 available updates and per-package upgrade buttons" loading="lazy"></div>
+    </div>
+
+    <div class="feature-row flip rv">
+      <div class="f-copy">
+        <div class="sec-label">Live console</div>
+        <h3>Watch Homebrew do its thing</h3>
+        <p>A Cakebrew-style console docks at the bottom of the window. Install something and the real output streams in — colors, warnings, exit codes, a Stop button.</p>
+        <ul class="f-list">
+          <li>Every operation is queued, logged, and kept in History</li>
+          <li>Readable <code style="font-family:var(--mono);font-size:13px;color:var(--sage)">brew doctor</code>, cleanup previews with sizes</li>
+          <li>Failures show the real error — not a shrug</li>
+        </ul>
+      </div>
+      <div class="f-shot"><img src="{{SHOT:21-console}}" alt="Docked console streaming live brew doctor output under the Diagnostics screen" loading="lazy"></div>
+    </div>
+
+    <div class="feature-row rv">
+      <div class="f-copy">
+        <div class="sec-label">Beyond Homebrew</div>
+        <h3>Every app on your Mac, one inventory</h3>
+        <p>Brewer scans everything — casks, App Store buys, Sparkle self-updaters, and apps you dragged in years ago — with size, source, and architecture.</p>
+        <ul class="f-list">
+          <li>Update Sparkle apps directly: download, back up the old version, install</li>
+          <li>Read the release notes before you say yes</li>
+          <li>Roll back from automatic backups if a new version misbehaves</li>
+          <li>Adopt manually-installed apps so brew manages them from now on</li>
+        </ul>
+      </div>
+      <div class="f-shot"><img src="{{SHOT:04-apps}}" alt="Apps inventory listing 55 applications with install source badges and sizes" loading="lazy"></div>
+    </div>
+
+    <div class="feature-row flip rv">
+      <div class="f-copy">
+        <div class="sec-label">Uninstaller</div>
+        <h3>Delete apps without the crumbs</h3>
+        <p>Drop any app on Brewer and it finds the caches, preferences, containers and logs left behind — then trashes it all together. Casks go through brew, leftovers included.</p>
+        <ul class="f-list">
+          <li>Everything goes to the Trash, so nothing is lost forever</li>
+          <li>SmartDelete watches the Trash and offers cleanup automatically</li>
+          <li>System and Apple apps are protected — always</li>
+        </ul>
+      </div>
+      <div class="f-shot"><img src="{{SHOT:06-uninstaller}}" alt="Uninstaller drop zone for removing an app together with its leftover files" loading="lazy"></div>
+    </div>
+  </div>
+</section>
+
+<section class="tour" id="tour">
+  <div class="wrap">
+    <div class="tour-head rv">
+      <div class="sec-label">Screen tour</div>
+      <h2>Have a look around</h2>
+      <p class="sec-sub">Real screenshots, taken from a Mac with 203 packages installed.</p>
+    </div>
+    <div class="tabs rv" role="tablist" id="tabs"></div>
+    <div class="stage rv" id="stage"></div>
+    <p class="stage-cap" id="stageCap"></p>
+  </div>
+</section>
+
+<section id="everything">
+  <div class="wrap">
+    <div class="rv">
+      <div class="sec-label">And the rest</div>
+      <h2>Small features you'll end up using daily</h2>
+    </div>
+    <div class="grid rv">
+      <div class="cell"><div class="ico">🔎</div><h4>Search everything</h4><p>Formulae, casks and third-party taps from one bar. Paste <code>owner/tap/pkg</code> and Brewer adds the missing tap for you.</p></div>
+      <div class="cell"><div class="ico">🧾</div><h4>Know before you install</h4><p>Dependencies, license, caveats, disk usage and quarantine status — before anything touches your system.</p></div>
+      <div class="cell"><div class="ico">⚙️</div><h4>Services</h4><p>Start, stop and restart brew services — databases and daemons — without touching launchctl.</p></div>
+      <div class="cell"><div class="ico">📦</div><h4>Brewfile</h4><p>Export your whole setup to a Brewfile, or replay one on a new Mac. Moving machines takes minutes.</p></div>
+      <div class="cell"><div class="ico">🩺</div><h4>Health dashboard</h4><p>Outdated counts, deprecated packages, orphans, cache size and a doctor report — scored at a glance.</p></div>
+      <div class="cell"><div class="ico">🧹</div><h4>Cleanup</h4><p>Preview exactly what <code>brew cleanup</code> would delete, file by file with sizes, then reclaim the space.</p></div>
+      <div class="cell"><div class="ico">🏷️</div><h4>Tags &amp; collections</h4><p>Favorites, pins, per-package notes, tags and collections — organize a big setup your way.</p></div>
+      <div class="cell"><div class="ico">🍏</div><h4>Apple Silicon scan</h4><p>Find apps still running under Rosetta 2 and Homebrew installs living in the wrong prefix.</p></div>
+      <div class="cell"><div class="ico">🛍️</div><h4>App Store too</h4><p>With the mas CLI, Mac App Store apps join the same update flow — one place for everything.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="dl" id="download">
+  <div class="wrap rv">
+    <div class="sec-label">Download</div>
+    <h2>Free. As in actually free.</h2>
+    <p class="sec-sub">No license keys, no trial timers, no accounts. Download it, drop it in Applications, brew happy.</p>
+    <div class="dl-card">
+      <div class="price">$0 <small>free forever</small></div>
+      <a class="btn btn-amber btn-big" href="Brewer-1.0.0.zip" download>⬇&#xFE0E;&nbsp; Download Brewer 1.0.0</a>
+      <div class="dl-notes">
+        <span>Universal binary — Apple Silicon &amp; Intel · macOS 14 Sonoma or later</span>
+        <span>Needs <a href="https://brew.sh" rel="noopener">Homebrew</a> (Brewer will point you there if it's missing)</span>
+        <span>~5 MB zip · everything runs locally on your Mac</span>
+      </div>
+    </div>
+    <p class="dl-alt">Prefer the terminal one last time? &nbsp;<code>brew install --cask brewer</code> <span style="opacity:.6">(coming soon)</span></p>
+  </div>
+</section>
+
+<footer>
+  <div class="foot-inner">
+    <span class="logo"><span class="logo-mark">🍺</span>Brewer</span>
+    <span>Made for people who love Homebrew but not typing it.</span>
+    <div class="foot-links">
+      <a href="https://brew.sh" rel="noopener">Homebrew</a>
+      <a href="https://docs.brew.sh" rel="noopener">brew docs</a>
+      <a href="#top" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;">Top ↑</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // ── Screenshot tour ─────────────────────────────
+  const SHOTS = [
+    { src: "{{SHOT:01-installed}}",  tab: "Installed",   cap: "Everything you've installed — filter, multi-select, act in bulk." },
+    { src: "{{SHOT:03-discover}}",   tab: "Discover",    cap: "A curated catalog with live install counts from formulae.brew.sh." },
+    { src: "{{SHOT:02-updates}}",    tab: "Updates",     cap: "133 outdated packages, upgradable together or one at a time." },
+    { src: "{{SHOT:07-health}}",     tab: "Health",      cap: "Outdated, deprecated, orphans, cache and doctor — scored at a glance." },
+    { src: "{{SHOT:05-appupdates}}", tab: "App Updates", cap: "Sparkle apps checked against their own feeds — update with automatic backup." },
+    { src: "{{SHOT:08-diagnostics}}",tab: "Diagnostics", cap: "brew doctor as readable cards instead of a wall of terminal text." },
+  ];
+
+  const tabs = document.getElementById("tabs");
+  const stage = document.getElementById("stage");
+  const cap = document.getElementById("stageCap");
+  let current = 0, timer = null;
+
+  SHOTS.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.className = "tab" + (i === 0 ? " on" : "");
+    b.role = "tab";
+    b.textContent = s.tab;
+    b.addEventListener("click", () => { show(i); restart(); });
+    tabs.appendChild(b);
+    const img = document.createElement("img");
+    img.src = s.src;
+    img.alt = s.cap;
+    img.loading = "lazy";
+    if (i === 0) img.classList.add("on");
+    stage.appendChild(img);
+  });
+  cap.textContent = SHOTS[0].cap;
+
+  function show(i) {
+    current = i;
+    [...tabs.children].forEach((t, j) => t.classList.toggle("on", j === i));
+    [...stage.children].forEach((im, j) => im.classList.toggle("on", j === i));
+    cap.textContent = SHOTS[i].cap;
+  }
+  function restart() {
+    clearInterval(timer);
+    timer = setInterval(() => show((current + 1) % SHOTS.length), 5200);
+  }
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) restart();
+
+  // ── Hero terminal typing ───────────────────────
+  const SCRIPT = [
+    { t: "p", text: "$ " }, { t: "type", text: "brew install brewer" },
+    { t: "o", text: "\n==> Downloading brewer-1.0.0.zip" },
+    { t: "o", text: "\n==> Pouring into /Applications…" },
+    { t: "ok", text: "\n🍺  brewer was successfully installed!" },
+    { t: "launch" }
+  ];
+  const term = document.getElementById("term");
+  const heroShot = document.getElementById("heroShot");
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  async function runTerm() {
+    if (reduced) {
+      term.innerHTML = '<span class="ln p">$ </span><span class="ln c">brew install brewer</span>' +
+        '<span class="ln o">\n==> Pouring into /Applications…</span>' +
+        '<span class="ln ok">\n🍺  brewer was successfully installed!</span>';
+      heroShot.classList.add("poured");
+      return;
+    }
+    const caret = document.createElement("span");
+    caret.className = "caret";
+    term.appendChild(caret);
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    await sleep(700);
+    for (const step of SCRIPT) {
+      if (step.t === "launch") {
+        await sleep(350);
+        heroShot.classList.add("poured");
+        continue;
+      }
+      const span = document.createElement("span");
+      span.className = "ln " + (step.t === "type" ? "c" : step.t);
+      term.insertBefore(span, caret);
+      if (step.t === "type") {
+        for (const ch of step.text) { span.textContent += ch; await sleep(46); }
+        await sleep(420);
+      } else {
+        span.textContent = step.text;
+        await sleep(step.t === "ok" ? 500 : 620);
+      }
+    }
+  }
+  runTerm();
+
+  // ── Marquee duplication ────────────────────────
+  const mq = document.getElementById("marquee");
+  mq.innerHTML += mq.innerHTML;
+
+  // ── Scroll reveals ─────────────────────────────
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+  }, { threshold: 0.12, rootMargin: "0px 0px -40px 0px" });
+  document.querySelectorAll(".rv").forEach(el => io.observe(el));
+
+  // ── Carbonation bubbles ────────────────────────
+  const canvas = document.getElementById("bubbles");
+  if (canvas && !reduced) {
+    const ctx = canvas.getContext("2d");
+    let w, h, bubbles = [];
+    function resize() {
+      w = canvas.width = canvas.offsetWidth * devicePixelRatio;
+      h = canvas.height = canvas.offsetHeight * devicePixelRatio;
+    }
+    resize();
+    addEventListener("resize", resize);
+    for (let i = 0; i < 42; i++) {
+      bubbles.push({
+        x: Math.random(), y: Math.random(),
+        r: 1 + Math.random() * 2.6,
+        s: 0.0004 + Math.random() * 0.001,
+        drift: (Math.random() - 0.5) * 0.0003,
+        a: 0.05 + Math.random() * 0.16
+      });
+    }
+    (function draw() {
+      ctx.clearRect(0, 0, w, h);
+      for (const b of bubbles) {
+        b.y -= b.s; b.x += b.drift;
+        if (b.y < -0.05) { b.y = 1.05; b.x = Math.random(); }
+        ctx.beginPath();
+        ctx.arc(b.x * w, b.y * h, b.r * devicePixelRatio, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(232, 163, 61, ${b.a})`;
+        ctx.fill();
+      }
+      requestAnimationFrame(draw);
+    })();
+  }
+</script>

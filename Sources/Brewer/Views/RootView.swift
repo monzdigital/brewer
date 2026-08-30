@@ -7,6 +7,7 @@ struct RootView: View {
         NavigationSplitView {
             SidebarView()
                 .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
+                .background(TourShots.isActive ? AnyShapeStyle(Color(nsColor: .underPageBackgroundColor)) : AnyShapeStyle(.clear))
         } detail: {
             VStack(spacing: 0) {
                 detailView(for: app.selection ?? .installed)

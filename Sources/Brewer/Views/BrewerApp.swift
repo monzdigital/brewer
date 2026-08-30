@@ -22,7 +22,10 @@ struct BrewerApp: App {
             RootView()
                 .environment(appState)
                 .frame(minWidth: 980, minHeight: 620)
-                .task { await appState.bootstrap() }
+                .task {
+                    await appState.bootstrap()
+                    TourShots.runIfRequested(app: appState)
+                }
         }
         .defaultSize(width: 1240, height: 780)
         .commands {
@@ -62,6 +65,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationDidFinishLaunching(_ notification: Notification) {
         if NotificationManager.isAvailable {
             UNUserNotificationCenter.current().delegate = self
+        }
+    }
+
+    // Don't leave orphaned brew processes running (they hold Homebrew's lock).
+    func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            AppState.shared?.console.terminateCurrent()
         }
     }
 

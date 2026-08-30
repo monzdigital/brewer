@@ -6,6 +6,9 @@ import Observation
 @Observable
 final class AppState {
 
+    /// For the app delegate to reach the console at quit time.
+    static weak var shared: AppState?
+
     let console: TaskConsole
     let packages: PackageStore
     let meta: MetaStore
@@ -57,6 +60,8 @@ final class AppState {
         self.inventory = AppsInventoryStore()
         self.uninstaller = UninstallerStore(console: console, packages: packages)
         self.installer = AppUpdateInstaller()
+
+        AppState.shared = self
 
         console.onFinished = { [weak history] operation in
             history?.record(operation)

@@ -131,6 +131,7 @@ final class DuplicatesStore {
     var overlaps: [Overlap] = []
     var isLoading = false
     var lastScan: Date?
+    var errorMessage: String?
 
     private let client = BrewClient()
     private unowned let console: TaskConsole
@@ -143,8 +144,12 @@ final class DuplicatesStore {
         isLoading = true
         defer { isLoading = false }
 
-        let kegs = await client.multiVersionFormulae()
-        multiVersionKegs = kegs.map { MultiVersionKeg(name: $0.name, versions: $0.versions) }
+        if let kegs = await client.multiVersionFormulae() {
+            multiVersionKegs = kegs.map { MultiVersionKeg(name: $0.name, versions: $0.versions) }
+            errorMessage = nil
+        } else {
+            errorMessage = "brew could not list versions — see the console (a pending Xcode license can cause this)."
+        }
 
         // Apps managed both by Homebrew and the App Store are duplicate sources of truth.
         var found: [Overlap] = []
@@ -164,7 +169,9 @@ final class DuplicatesStore {
 
     func cleanOldVersions(of name: String) async {
         await console.runBrew(title: "Clean old versions of \(name)", arguments: ["cleanup", name])
-        let kegs = await client.multiVersionFormulae()
-        multiVersionKegs = kegs.map { MultiVersionKeg(name: $0.name, versions: $0.versions) }
+        if let kegs = await client.multiVersionFormulae() {
+            multiVersionKegs = kegs.map { MultiVersionKeg(name: $0.name, versions: $0.versions) }
+            errorMessage = nil
+        }
     }
 }

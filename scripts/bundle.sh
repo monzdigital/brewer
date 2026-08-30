@@ -3,6 +3,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Prefer the Command Line Tools toolchain when present: builds work without
+# full Xcode and are immune to an unaccepted Xcode license.
+if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Library/Developer/CommandLineTools/SDKs ]; then
+  export DEVELOPER_DIR=/Library/Developer/CommandLineTools
+fi
+
 CONFIG="${1:-release}"
 
 echo "==> swift build -c $CONFIG"

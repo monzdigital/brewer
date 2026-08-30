@@ -351,6 +351,23 @@ struct PackageContextMenu: View {
                 Task { await app.packages.setPinned(package, pinned: !package.isPinned) }
             }
         }
+        if app.meta.snoozes[package.id] != nil {
+            Button("Unsnooze") {
+                app.meta.unsnooze(package.id)
+            }
+        } else if package.isOutdated {
+            Menu("Snooze Update") {
+                Button("For 1 day") {
+                    app.meta.snooze(package.id, until: Date().addingTimeInterval(86_400), version: nil)
+                }
+                Button("For 1 week") {
+                    app.meta.snooze(package.id, until: Date().addingTimeInterval(7 * 86_400), version: nil)
+                }
+                Button("Skip version \(package.latestVersion ?? "")") {
+                    app.meta.snooze(package.id, until: nil, version: package.latestVersion)
+                }
+            }
+        }
 
         if !app.meta.collections.isEmpty {
             Menu("Collections") {
