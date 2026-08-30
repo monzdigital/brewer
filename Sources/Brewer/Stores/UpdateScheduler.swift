@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// Periodically runs `brew update`, refreshes the outdated list, notifies the user,
-/// and (optionally) upgrades automatically — with battery-aware behavior.
+/// and (optionally) upgrades automatically - with battery-aware behavior.
 @MainActor
 @Observable
 final class UpdateScheduler {

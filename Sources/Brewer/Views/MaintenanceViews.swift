@@ -84,7 +84,7 @@ struct HealthView: View {
                     ) { app.selection = .cleanup }
 
                     StatTile(
-                        value: app.health.doctorLastRun == nil ? "—" : "\(issueCount)",
+                        value: app.health.doctorLastRun == nil ? "-" : "\(issueCount)",
                         title: "Issues",
                         subtitle: app.health.doctorLastRun == nil ? "run brew doctor" : "from brew doctor",
                         symbol: "stethoscope",

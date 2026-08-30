@@ -316,7 +316,7 @@ struct BrewfileView: View {
                     ContentUnavailableView(
                         "No preview yet",
                         systemImage: "doc.text",
-                        description: Text("Generate a preview to see the Brewfile for your current setup — taps, formulae, casks and App Store apps.")
+                        description: Text("Generate a preview to see the Brewfile for your current setup - taps, formulae, casks and App Store apps.")
                     )
                     .frame(maxHeight: .infinity)
                 } else {

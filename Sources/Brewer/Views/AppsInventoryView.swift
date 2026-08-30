@@ -108,7 +108,7 @@ private struct InventoryRow: View {
                         TinyBadge(text: "Intel", color: .orange)
                     }
                 }
-                Text(item.app.shortVersion ?? "—")
+                Text(item.app.shortVersion ?? "-")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

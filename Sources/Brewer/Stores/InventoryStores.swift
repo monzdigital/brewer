@@ -4,7 +4,7 @@ import Observation
 
 // MARK: - AppsInventoryStore (MacUpdater-style full system scan)
 
-/// Every app on the Mac — however it was installed — with source detection
+/// Every app on the Mac - however it was installed - with source detection
 /// (Homebrew cask / App Store / Sparkle self-updater / manual), size and
 /// architecture.
 @MainActor
@@ -178,13 +178,13 @@ final class UninstallerStore {
             }
         }
 
-        // 2. Remove the app itself — through Homebrew when it owns the cask.
+        // 2. Remove the app itself - through Homebrew when it owns the cask.
         if let token = review.caskToken {
             let ok = await console.runBrew(
                 title: "Uninstall \(token)",
                 arguments: ["uninstall", "--cask", token]
             )
-            notes.append(ok ? "Removed via Homebrew (\(token))." : "brew uninstall \(token) failed — see the console.")
+            notes.append(ok ? "Removed via Homebrew (\(token))." : "brew uninstall \(token) failed - see the console.")
             await packages.refresh()
         } else if includeAppItself && review.appStillOnDisk {
             let result = LeftoverScanner.moveToTrash(paths: [review.app.url.path])
@@ -271,7 +271,7 @@ final class UninstallerStore {
             }
             NotificationManager.post(
                 title: "\(scanned.name) moved to Trash",
-                body: "Brewer can also remove its leftover files — open the Uninstaller."
+                body: "Brewer can also remove its leftover files - open the Uninstaller."
             )
         }
     }

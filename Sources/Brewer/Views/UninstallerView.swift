@@ -55,7 +55,7 @@ struct UninstallerView: View {
                 .foregroundStyle(dropTargeted ? Color.accentColor : .secondary)
             Text("Drop an app here to uninstall it completely")
                 .font(.title3.weight(.semibold))
-            Text("Brewer finds caches, preferences, support files, logs and containers the app leaves behind — and moves everything to the Trash together. Homebrew casks are removed with brew.")
+            Text("Brewer finds caches, preferences, support files, logs and containers the app leaves behind - and moves everything to the Trash together. Homebrew casks are removed with brew.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -163,7 +163,7 @@ struct UninstallerView: View {
                     ContentUnavailableView {
                         Label("Protected app", systemImage: "lock.shield")
                     } description: {
-                        Text("System apps and Apple software can't be removed — deleting them could break macOS.")
+                        Text("System apps and Apple software can't be removed - deleting them could break macOS.")
                     } actions: {
                         Button("Back") { app.uninstaller.cancelReview() }
                     }
@@ -193,7 +193,7 @@ struct UninstallerView: View {
                         TinyBadge(text: "Homebrew: \(token)", color: .green)
                     }
                     if review.isRunning {
-                        TinyBadge(text: "running — will be quit", color: .orange)
+                        TinyBadge(text: "running - will be quit", color: .orange)
                     }
                     if !review.appStillOnDisk || review.app.url.path.contains("/.Trash/") {
                         TinyBadge(text: "already in Trash", color: .secondary)
@@ -233,7 +233,7 @@ struct UninstallerView: View {
             }
             if app.uninstaller.leftovers.isEmpty {
                 Section {
-                    Label("No leftover files found — this app is tidy.", systemImage: "sparkles")
+                    Label("No leftover files found - this app is tidy.", systemImage: "sparkles")
                         .foregroundStyle(.secondary)
                 }
             } else {
@@ -308,10 +308,10 @@ private struct LeftoverRow: View {
                     HStack(spacing: 5) {
                         Text(item.displayName).font(.callout)
                         if item.confidence == .nameMatch {
-                            TinyBadge(text: "name match — review", color: .yellow)
+                            TinyBadge(text: "name match - review", color: .yellow)
                         }
                         if item.isSystemDomain {
-                            TinyBadge(text: "system — may need admin", color: .orange)
+                            TinyBadge(text: "system - may need admin", color: .orange)
                         }
                     }
                     Text(item.path)

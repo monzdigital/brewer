@@ -148,7 +148,7 @@ final class DuplicatesStore {
             multiVersionKegs = kegs.map { MultiVersionKeg(name: $0.name, versions: $0.versions) }
             errorMessage = nil
         } else {
-            errorMessage = "brew could not list versions — see the console (a pending Xcode license can cause this)."
+            errorMessage = "brew could not list versions - see the console (a pending Xcode license can cause this)."
         }
 
         // Apps managed both by Homebrew and the App Store are duplicate sources of truth.

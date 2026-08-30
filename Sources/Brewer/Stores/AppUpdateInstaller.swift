@@ -68,13 +68,13 @@ final class AppUpdateInstaller {
                 }
             }
 
-            // Installer packages need the system Installer app — hand off.
+            // Installer packages need the system Installer app - hand off.
             if archive.pathExtension.lowercased() == "pkg" {
                 let keep = Self.stagingRoot.appendingPathComponent(archive.lastPathComponent)
                 try? FileManager.default.removeItem(at: keep)
                 try FileManager.default.moveItem(at: archive, to: keep)
                 NSWorkspace.shared.open(keep)
-                phases[key] = .finished("Installer package opened — complete the update there.")
+                phases[key] = .finished("Installer package opened - complete the update there.")
                 return
             }
 
@@ -225,7 +225,7 @@ final class AppUpdateInstaller {
                 "attach", archive.path, "-nobrowse", "-noautoopen", "-readonly", "-mountpoint", mountPoint.path
             ])
             guard attach.succeeded else {
-                throw InstallerError.step("Could not open the disk image (it may require accepting a license — open it manually).")
+                throw InstallerError.step("Could not open the disk image (it may require accepting a license - open it manually).")
             }
             defer {
                 Task.detached { _ = await Shell.run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"]) }

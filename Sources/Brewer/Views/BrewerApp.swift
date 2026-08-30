@@ -99,7 +99,7 @@ private struct MenuBarLabel: View {
 
     var body: some View {
         // Keep the structure constant (always Image + Text). NOTE: never pass
-        // `isInserted:` to MenuBarExtra — on macOS 26 an isInserted binding sends
+        // `isInserted:` to MenuBarExtra - on macOS 26 an isInserted binding sends
         // the scene graph into a permanent 100% CPU rebuild loop
         // (AppGraph.graphDidChange -> makeMainMenu -> invalidate -> repeat).
         let count = app.visibleUpdateCount

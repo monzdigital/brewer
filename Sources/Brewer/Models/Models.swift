@@ -53,7 +53,7 @@ struct BrewPackage: Identifiable, Hashable {
             }
             return installed
         }
-        return latestVersion ?? "—"
+        return latestVersion ?? "-"
     }
 }
 
@@ -211,8 +211,8 @@ struct InventoryApp: Identifiable, Hashable {
 // MARK: - Deep uninstall (AppCleaner-style)
 
 enum LeftoverConfidence: Hashable {
-    case bundleID   // matched the app's bundle identifier — safe to remove
-    case nameMatch  // matched only by app name — review before removing
+    case bundleID   // matched the app's bundle identifier - safe to remove
+    case nameMatch  // matched only by app name - review before removing
 }
 
 struct LeftoverItem: Identifiable, Hashable {

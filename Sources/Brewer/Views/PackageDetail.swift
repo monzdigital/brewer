@@ -122,7 +122,7 @@ struct PackageDetailView: View {
                         Task { await app.packages.uninstall([live]) }
                     }
                     if live.kind == .cask {
-                        Button("Uninstall (Zap — remove all data)", role: .destructive) {
+                        Button("Uninstall (Zap - remove all data)", role: .destructive) {
                             Task { await app.packages.uninstall([live], zap: true) }
                         }
                     }
@@ -213,7 +213,7 @@ struct PackageDetailView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 120, alignment: .leading)
             if let size = app.packages.sizeCache[live.id] {
-                Text(size > 0 ? Format.bytes(size) : "—")
+                Text(size > 0 ? Format.bytes(size) : "-")
                     .font(.callout)
             } else {
                 Text("Calculating…")

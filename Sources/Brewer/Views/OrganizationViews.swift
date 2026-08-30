@@ -12,7 +12,7 @@ struct TagsView: View {
                 ContentUnavailableView(
                     "No tags yet",
                     systemImage: "tag",
-                    description: Text("Add tags to packages from their detail pane to organize your setup — e.g. “work”, “media”, “dev-tools”.")
+                    description: Text("Add tags to packages from their detail pane to organize your setup - e.g. “work”, “media”, “dev-tools”.")
                 )
             } else {
                 HStack(spacing: 0) {
@@ -115,7 +115,7 @@ struct CollectionsView: View {
                 ContentUnavailableView(
                     "No collections yet",
                     systemImage: "rectangle.stack",
-                    description: Text("Group related packages — a “Web dev” kit, a “Design” setup — and act on them together. Add packages from their detail pane.")
+                    description: Text("Group related packages - a “Web dev” kit, a “Design” setup - and act on them together. Add packages from their detail pane.")
                 )
                 .frame(maxWidth: .infinity)
             } else {

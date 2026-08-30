@@ -117,7 +117,7 @@ enum TourShots {
                 }
             }
             guard let settingsWindow = found else {
-                print("settings window not found — titles: \(NSApp.windows.map(\.title))")
+                print("settings window not found - titles: \(NSApp.windows.map(\.title))")
                 exit(1)
             }
             settingsWindow.orderFrontRegardless()

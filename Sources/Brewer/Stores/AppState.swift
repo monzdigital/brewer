@@ -77,7 +77,7 @@ final class AppState {
                 case .failed(let code):
                     NotificationManager.post(
                         title: "Failed: \(operation.title)",
-                        body: "Exited with code \(code) — see the console for details."
+                        body: "Exited with code \(code) - see the console for details."
                     )
                 default:
                     break
@@ -147,7 +147,7 @@ final class AppState {
         }
     }
 
-    /// Count of updates not snoozed — used for sidebar and menu bar badges.
+    /// Count of updates not snoozed - used for sidebar and menu bar badges.
     var visibleUpdateCount: Int {
         packages(in: .updates).count
     }

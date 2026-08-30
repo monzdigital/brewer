@@ -15,7 +15,7 @@ struct ReleaseNotesSheet: View {
                     .resizable()
                     .frame(width: 32, height: 32)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("\(update.appName) — what's new")
+                    Text("\(update.appName) - what's new")
                         .font(.headline)
                     HStack(spacing: 4) {
                         Text(update.currentVersion).foregroundStyle(.secondary)

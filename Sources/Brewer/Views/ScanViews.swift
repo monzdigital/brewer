@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - App Updates (Sparkle feeds)
 
 /// Apps that update themselves via Sparkle: compares each app's version against
-/// its own appcast feed — useful for casks marked `auto_updates` whose Homebrew
+/// its own appcast feed - useful for casks marked `auto_updates` whose Homebrew
 /// version lags behind.
 struct AppUpdatesView: View {
     @Environment(AppState.self) private var app
@@ -188,7 +188,7 @@ private struct SparkleUpdateRow: View {
                 }
             }
             .controlSize(.small)
-            .help("This app is managed by Homebrew — upgrade the cask")
+            .help("This app is managed by Homebrew - upgrade the cask")
             .disabled(app.console.isBusy)
         } else if phase.isActive {
             ProgressView().controlSize(.small)
@@ -432,14 +432,14 @@ struct AppleSiliconView: View {
                                     }
                                     .padding(.vertical, 2)
                                 }
-                                Text("Tip: many of these have native builds — reinstalling through Homebrew usually fetches the Apple Silicon version.")
+                                Text("Tip: many of these have native builds - reinstalling through Homebrew usually fetches the Apple Silicon version.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .padding(.top, 4)
                             }
                             .cardStyle()
                         } else {
-                            Label("No Intel-only apps found — everything runs natively. 🎉", systemImage: "checkmark.seal")
+                            Label("No Intel-only apps found - everything runs natively. 🎉", systemImage: "checkmark.seal")
                                 .font(.callout)
                                 .cardStyle(tint: .green)
                         }
@@ -464,7 +464,7 @@ struct AppleSiliconView: View {
 
     private var subtitle: String {
         BrewEnvironment.current.isAppleSiliconMachine
-            ? "This Mac runs on Apple Silicon — find apps still built for Intel."
+            ? "This Mac runs on Apple Silicon - find apps still built for Intel."
             : "This Mac has an Intel processor."
     }
 }

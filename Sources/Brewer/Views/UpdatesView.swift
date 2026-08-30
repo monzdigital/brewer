@@ -91,7 +91,7 @@ struct UpdatesView: View {
                     systemImage: "checkmark.seal",
                     description: Text(app.meta.snoozedIDs.isEmpty
                         ? "All installed packages are at their latest version."
-                        : "Some updates may be snoozed — check the Snoozed section.")
+                        : "Some updates may be snoozed - check the Snoozed section.")
                 )
                 Spacer()
             }
@@ -137,7 +137,7 @@ private struct UpdateRow: View {
                     Text(package.displayName).fontWeight(.medium)
                     KindChip(kind: package.kind)
                     if package.isPinned {
-                        TinyBadge(text: "pinned — will be skipped", color: .orange)
+                        TinyBadge(text: "pinned - will be skipped", color: .orange)
                     }
                 }
                 HStack(spacing: 4) {

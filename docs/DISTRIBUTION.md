@@ -18,7 +18,7 @@ imkânsızdır:
 | brew servislerini (launchctl) yönetmek | ❌ |
 
 Aynı sebepten **Cork, Cakebrew, AppCleaner, MacUpdater ve Latest de App
-Store'da yoktur** — hepsi Apple'ın resmi ikinci kanalı olan **Developer ID +
+Store'da yoktur** - hepsi Apple'ın resmi ikinci kanalı olan **Developer ID +
 Notarization** ile dağıtılır. Bu kanal Gatekeeper tarafından tam olarak
 desteklenir: kullanıcı indirir, açar, macOS "Apple tarafından kötü amaçlı
 yazılım taraması yapıldı" onayını gösterir.
@@ -36,7 +36,7 @@ yazılım taraması yapıldı" onayını gösterir.
      Keychain'e ekleyin.
    - Kontrol: `security find-identity -v -p codesigning` çıktısında
      `Developer ID Application: Adınız (TAKIMID)` görünmeli.
-3. **Notary profili** kaydedin (app-specific password gerekir —
+3. **Notary profili** kaydedin (app-specific password gerekir -
    https://account.apple.com → Sign-In and Security → App-Specific Passwords):
 
    ```bash
@@ -66,15 +66,15 @@ Developer ID imzalar, Apple notary servisine gönderir, bileti staple eder ve
 ### 3. Dağıtım kanalları
 
 - **Web sitesi**: zip'i sitenize koyun. (İleride Sparkle gömülürse uygulama
-  kendini güncelleyebilir — TODO.md'de.)
-- **Homebrew cask**: en doğal kanal — kendi tap'inizde `brewer.rb` cask'i
+  kendini güncelleyebilir - TODO.md'de.)
+- **Homebrew cask**: en doğal kanal - kendi tap'inizde `brewer.rb` cask'i
   yayınlayın; kullanıcılar `brew install --cask <tap>/brewer` ile kurar.
 - **GitHub Releases**: zip'i release olarak ekleyin.
 
 ## "Yine de App Store" istenirse ne olur?
 
 Uygulamanın App Store'a girebilmesi için tüm brew/dosya işlemlerinden
-arındırılması gerekirdi — geriye yalnızca formulae.brew.sh kataloğunu
+arındırılması gerekirdi - geriye yalnızca formulae.brew.sh kataloğunu
 *görüntüleyen* bir vitrin kalırdı (kurulum, güncelleme, servis, temizlik
 olmadan). Bu, Brewer'ın amacını ortadan kaldırdığı için önerilmez. Sürüm
 bilgileri, ikon, gizlilik manifestosu ve şifreleme beyanı yine de hazır

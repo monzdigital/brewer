@@ -38,7 +38,7 @@ private struct GeneralSettings: View {
 
             Divider().padding(.vertical, 4)
 
-            Toggle("SmartDelete — watch the Trash for deleted apps", isOn: Binding(
+            Toggle("SmartDelete - watch the Trash for deleted apps", isOn: Binding(
                 get: { app.uninstaller.smartDeleteEnabled },
                 set: { app.uninstaller.setSmartDelete($0) }
             ))

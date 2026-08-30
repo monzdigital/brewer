@@ -6,7 +6,7 @@ enum SelfTestRunner {
 
     static func run() -> Never {
         setbuf(stdout, nil) // stream output even when piped
-        print("Brewer self-test — brew at \(BrewEnvironment.current.brewPath)")
+        print("Brewer self-test - brew at \(BrewEnvironment.current.brewPath)")
         let semaphore = DispatchSemaphore(value: 0)
         nonisolated(unsafe) var failures: [String] = []
 
@@ -32,9 +32,9 @@ enum SelfTestRunner {
 
         func check(_ name: String, _ condition: Bool, detail: String = "") {
             if condition {
-                print("PASS  \(name)\(detail.isEmpty ? "" : " — \(detail)")")
+                print("PASS  \(name)\(detail.isEmpty ? "" : " - \(detail)")")
             } else {
-                print("FAIL  \(name)\(detail.isEmpty ? "" : " — \(detail)")")
+                print("FAIL  \(name)\(detail.isEmpty ? "" : " - \(detail)")")
                 failures.append(name)
             }
         }

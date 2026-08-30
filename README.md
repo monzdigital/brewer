@@ -9,14 +9,14 @@ brew commands, so your setup stays portable, familiar, and fully yours.
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![Swift 5](https://img.shields.io/badge/Swift-5.9-orange) ![Free](https://img.shields.io/badge/price-free-brightgreen)
 
-> Early build, not yet notarized — on first launch right-click the app → Open,
+> Early build, not yet notarized - on first launch right-click the app → Open,
 > or allow it under System Settings → Privacy & Security.
 
 ## Features
 
 **Browse & install**
 - Search formulae, casks and third-party taps from one search bar (full
-  `user/repo/package` paths supported — missing taps can be added automatically)
+  `user/repo/package` paths supported - missing taps can be added automatically)
 - Inspect dependencies, license, caveats, disk usage and quarantine status before installing
 - One-click install with live command output streamed into the console panel
 - Curated Discover catalog with live install counts from formulae.brew.sh
@@ -29,7 +29,7 @@ brew commands, so your setup stays portable, familiar, and fully yours.
 
 **Stay up to date**
 - Scheduled update checks (6h/12h/daily/weekly) with notifications
-- Optional automatic background upgrades — battery-aware (AC power / Low Power Mode)
+- Optional automatic background upgrades - battery-aware (AC power / Low Power Mode)
 - Menu bar icon with outdated count at a glance
 - Running apps are closed cleanly before their cask is upgraded
 - Snooze updates per package (for a duration or per version)
@@ -57,7 +57,7 @@ brew commands, so your setup stays portable, familiar, and fully yours.
 
 **Complete uninstaller** *(AppCleaner-style)*
 - Drag & drop any app to remove it together with its caches, preferences,
-  support files, logs and containers (everything goes to the Trash — recoverable)
+  support files, logs and containers (everything goes to the Trash - recoverable)
 - Homebrew casks are uninstalled through brew, leftovers cleaned after
 - SmartDelete: optionally watch the Trash and offer leftover cleanup when you
   delete an app the normal way
@@ -84,12 +84,12 @@ make debug      # debug build
 make icon       # regenerate packaging/AppIcon.icns
 ```
 
-The result is `dist/Brewer.app` — copy it to /Applications if you like.
+The result is `dist/Brewer.app` - copy it to /Applications if you like.
 With Xcode installed you can also open `Package.swift` directly.
 
 For signed, notarized, universal (arm64+x86_64) builds for distribution, see
 [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) and `scripts/release.sh`.
-(Heads-up: this app class cannot ship on the Mac App Store — the App Sandbox
+(Heads-up: this app class cannot ship on the Mac App Store - the App Sandbox
 forbids running brew and managing other apps; Developer ID + notarization is
 the supported path, same as Cork/Cakebrew/AppCleaner.)
 

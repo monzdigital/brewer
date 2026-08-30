@@ -29,4 +29,4 @@ out = docs / "index.html"
 out.write_text(html)
 (docs / ".nojekyll").write_text("")
 size_mb = out.stat().st_size / 1_000_000
-print(f"docs/index.html written — {size_mb:.2f} MB, {len(used)} screenshots inlined: {sorted(used)}")
+print(f"docs/index.html written - {size_mb:.2f} MB, {len(used)} screenshots inlined: {sorted(used)}")

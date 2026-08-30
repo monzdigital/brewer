@@ -72,13 +72,13 @@ if [ -n "${SIGN_IDENTITY:-}" ]; then
     ditto -c -k --keepParent "$APP" "$ZIP"
     echo "==> Done: $ZIP (notarized & stapled)"
   else
-    echo "!! NOTARY_PROFILE not set — skipped notarization. Set it up with:"
+    echo "!! NOTARY_PROFILE not set - skipped notarization. Set it up with:"
     echo "   xcrun notarytool store-credentials brewer-notary --apple-id … --team-id … --password …"
   fi
 else
-  echo "!! SIGN_IDENTITY not set — ad-hoc signing only (local use)."
+  echo "!! SIGN_IDENTITY not set - ad-hoc signing only (local use)."
   codesign --force --deep --sign - "$APP"
   rm -f "$ZIP"
   ditto -c -k --keepParent "$APP" "$ZIP"
-  echo "==> Done: $ZIP (NOT distributable — see docs/DISTRIBUTION.md)"
+  echo "==> Done: $ZIP (NOT distributable - see docs/DISTRIBUTION.md)"
 fi
