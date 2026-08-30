@@ -137,3 +137,7 @@ Mutating commands run through a serialized console queue (Homebrew holds a
 global lock), stream their output live, and are recorded to history.
 Read-only queries (`brew info --json=v2`, `brew outdated`, …) run directly
 with `HOMEBREW_NO_AUTO_UPDATE=1`.
+
+## License
+
+Brewer is free software released under the [GPL-3.0](LICENSE) license.
