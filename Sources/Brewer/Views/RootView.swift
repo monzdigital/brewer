@@ -23,6 +23,7 @@ struct RootView: View {
             }
         }
         .navigationTitle("Brewer")
+        .background { SettingsAutoOpener() }
     }
 
     @ViewBuilder
@@ -171,6 +172,24 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+    }
+}
+
+/// Invisible helper that opens the Settings scene when running in
+/// `--settings-shot` capture mode (the AppKit selector no longer works
+/// for SwiftUI Settings scenes).
+struct SettingsAutoOpener: View {
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onAppear {
+                guard CommandLine.arguments.contains("--settings-shot") else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    openSettings()
+                }
+            }
     }
 }
 

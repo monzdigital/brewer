@@ -19,6 +19,10 @@ enum TourShots {
     static var isActive: Bool { requestedOutputDir != nil }
 
     static func runIfRequested(app: AppState) {
+        if CommandLine.arguments.contains("--settings-shot"), let dir = requestedOutputDir {
+            runSettingsShot(dir: dir)
+            return
+        }
         guard let dir = requestedOutputDir else { return }
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
 
@@ -93,6 +97,62 @@ enum TourShots {
 
             print("tour-shots complete")
             exit(0)
+        }
+    }
+
+    /// Opens the Settings window WITHOUT activating the app (so the user's
+    /// focus is never stolen), captures each tab, then exits.
+    private static func runSettingsShot(dir: String) {
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        Task { @MainActor in
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+            // SettingsAutoOpener (in RootView) calls openSettings() ~1s after launch.
+            let tabTitles = ["General", "Updates", "Homebrew", "About", "Settings", "Brewer Settings"]
+            var found: NSWindow?
+            for _ in 0..<20 {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                if let window = NSApp.windows.first(where: { tabTitles.contains($0.title) }) {
+                    found = window
+                    break
+                }
+            }
+            guard let settingsWindow = found else {
+                print("settings window not found — titles: \(NSApp.windows.map(\.title))")
+                exit(1)
+            }
+            settingsWindow.orderFrontRegardless()
+
+            // Walk the toolbar-style tabs.
+            let toolbar = settingsWindow.toolbar
+            let items = toolbar?.items ?? []
+            if items.isEmpty {
+                try? await Task.sleep(nanoseconds: 800_000_000)
+                captureWindow(settingsWindow, name: "30-settings", dir: dir)
+            } else {
+                for (index, item) in items.enumerated() {
+                    if let action = item.action {
+                        _ = item.target.map { NSApp.sendAction(action, to: $0, from: item) }
+                            ?? NSApp.sendAction(action, to: nil, from: item)
+                    }
+                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    captureWindow(settingsWindow, name: String(format: "3%d-settings-%@", index, item.label.lowercased()), dir: dir)
+                }
+            }
+            print("settings-shot complete")
+            exit(0)
+        }
+    }
+
+    private static func captureWindow(_ window: NSWindow, name: String, dir: String) {
+        let url = URL(fileURLWithPath: dir).appendingPathComponent("\(name).png")
+        if let cgImage = CGWindowListCreateImage(
+            .null, .optionIncludingWindow, CGWindowID(window.windowNumber),
+            [.boundsIgnoreFraming, .bestResolution]
+        ), cgImage.width > 1 {
+            let rep = NSBitmapImageRep(cgImage: cgImage)
+            if let data = rep.representation(using: .png, properties: [:]) {
+                try? data.write(to: url)
+            }
         }
     }
 
