@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Builds site/index.html from index.template.html by inlining the app
-screenshots as base64 data URIs. Usage:
+"""Builds docs/index.html (the GitHub Pages site) from site/index.template.html
+by inlining the app screenshots as base64 data URIs. Usage:
 
     python3 site/build-site.py <shots-dir>
 """
@@ -23,7 +23,10 @@ def inline(match: re.Match) -> str:
     return f"data:image/png;base64,{data}"
 
 html = re.sub(r"\{\{SHOT:([a-z0-9-]+)\}\}", inline, template)
-out = root / "index.html"
+docs = root.parent / "docs"
+docs.mkdir(exist_ok=True)
+out = docs / "index.html"
 out.write_text(html)
+(docs / ".nojekyll").write_text("")
 size_mb = out.stat().st_size / 1_000_000
-print(f"index.html written — {size_mb:.2f} MB, {len(used)} screenshots inlined: {sorted(used)}")
+print(f"docs/index.html written — {size_mb:.2f} MB, {len(used)} screenshots inlined: {sorted(used)}")

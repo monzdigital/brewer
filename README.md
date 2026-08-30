@@ -4,7 +4,13 @@ A native Homebrew app for the Mac that turns `brew` commands into simple
 point-and-click actions. Built in SwiftUI. Everything maps directly to real
 brew commands, so your setup stays portable, familiar, and fully yours.
 
-![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![Swift 5](https://img.shields.io/badge/Swift-5.9-orange)
+**🌐 Website: [monzdigital.github.io/brewer](https://monzdigital.github.io/brewer/) ·
+⬇️ [Download the latest release](https://github.com/monzdigital/brewer/releases/latest/download/Brewer-1.0.0.zip)**
+
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![Swift 5](https://img.shields.io/badge/Swift-5.9-orange) ![Free](https://img.shields.io/badge/price-free-brightgreen)
+
+> Early build, not yet notarized — on first launch right-click the app → Open,
+> or allow it under System Settings → Privacy & Security.
 
 ## Features
 
@@ -89,9 +95,10 @@ the supported path, same as Cork/Cakebrew/AppCleaner.)
 
 ## Website
 
-A self-contained landing page lives in `site/` — `index.html` (screenshots
-inlined, ~2.5 MB) plus the downloadable `Brewer-1.0.0.zip` next to it. Host the
-two files anywhere (GitHub Pages works as-is).
+The landing page is authored in `site/` (template + build script) and built
+into `docs/index.html`, which GitHub Pages serves at
+[monzdigital.github.io/brewer](https://monzdigital.github.io/brewer/). The
+download button points at the latest GitHub release asset.
 
 To refresh the screenshots after UI changes and rebuild the page:
 

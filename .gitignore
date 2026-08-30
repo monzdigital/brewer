@@ -3,3 +3,5 @@ dist/
 .DS_Store
 *.xcodeproj/xcuserdata/
 .swiftpm/
+site/index.html
+site/*.zip
