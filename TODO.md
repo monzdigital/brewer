@@ -26,12 +26,18 @@ da budur.
 - [x] Uygulama ikonu (`packaging/AppIcon.icns`), kategori, sürüm bilgileri
 - [x] Adım adım dağıtım rehberi — `docs/DISTRIBUTION.md`
 
+### Yayın durumu (2026-08-30)
+- [x] GitHub reposu: https://github.com/monzdigital/brewer (public)
+- [x] v1.0.0 Release + `Brewer-1.0.0.zip` (evrensel, SHA-256'lı, notlar Gatekeeper adımlarını içerir)
+- [x] GitHub Pages sitesi: https://monzdigital.github.io/brewer/ (`docs/` klasöründen)
+- [x] Sitedeki indirme butonu `releases/latest/download/…` kalıcı linkine bağlı
+
 ### Kullanıcının yapması gerekenler (hesap gerektirir)
 - [ ] Apple Developer Program üyeliği (99 USD/yıl) — https://developer.apple.com/programs/
 - [ ] "Developer ID Application" sertifikası oluşturup Keychain'e yüklemek
 - [ ] `xcrun notarytool store-credentials` ile bir notary profili kaydetmek
-- [ ] `SIGN_IDENTITY` ve `NOTARY_PROFILE` ortam değişkenleriyle `scripts/release.sh` çalıştırmak
-- [ ] (İsteğe bağlı) Dağıtım kanalı: kendi web sitesi + Sparkle appcast, veya `brew tap` üzerinden cask
+- [ ] Notarize edilmiş sürüm için `SIGN_IDENTITY` + `NOTARY_PROFILE` ile `scripts/release.sh` → `gh release upload` (o zamana kadar site "notarize edilmemiş erken sürüm" notu taşıyor)
+- [ ] (İsteğe bağlı) Kendi tap'inde `brewer.rb` cask'i → `brew install --cask monzdigital/tap/brewer`
 
 ### Sonraki geliştirmeler
 - [ ] Sparkle framework'ü gömerek Brewer'ın kendi kendini güncellemesi
