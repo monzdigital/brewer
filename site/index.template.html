@@ -578,11 +578,11 @@
         <span>Universal binary - Apple Silicon &amp; Intel · macOS 14 Sonoma or later</span>
         <span>Needs <a href="https://brew.sh" rel="noopener">Homebrew</a> (Brewer will point you there if it's missing)</span>
         <span>~3 MB zip · everything runs locally on your Mac · <a href="https://github.com/monzdigital/brewer" rel="noopener">source on GitHub</a></span>
-        <span>Early build, not yet notarized - first launch: right-click the app → Open,<br>or allow it under System Settings → Privacy &amp; Security.</span>
+        <span>Early build, not yet notarized - macOS blocks the first launch:<br>System Settings → Privacy &amp; Security → scroll down → "Open Anyway" (one time).</span>
       </div>
     </div>
-    <p class="dl-alt">Prefer the terminal? &nbsp;<code>brew install --cask monzdigital/tap/brewer</code><br>
-    <span style="opacity:.55;font-size:13px">Homebrew will ask you to trust the tap on first use.</span></p>
+    <p class="dl-alt">Prefer the terminal? &nbsp;<code>brew install --cask --no-quarantine monzdigital/tap/brewer</code><br>
+    <span style="opacity:.55;font-size:13px">--no-quarantine skips the Gatekeeper prompt · Homebrew asks you to trust the tap on first use.</span></p>
   </div>
 </section>
 

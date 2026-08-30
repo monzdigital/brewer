@@ -13,8 +13,9 @@ brew install --cask monzdigital/tap/brewer
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![Swift 5](https://img.shields.io/badge/Swift-5.9-orange) ![Free](https://img.shields.io/badge/price-free-brightgreen) ![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)
 
-> Early build, not yet notarized - on first launch right-click the app → Open,
-> or allow it under System Settings → Privacy & Security.
+> Early build, not yet notarized - macOS blocks the first launch. Open
+> System Settings → Privacy & Security, scroll down, and click "Open Anyway"
+> (one time). Installing via brew? Add `--no-quarantine` to skip the prompt.
 
 ## Features
 
