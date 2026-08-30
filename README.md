@@ -11,7 +11,7 @@ brew commands, so your setup stays portable, familiar, and fully yours.
 brew install --cask monzdigital/tap/brewer
 ```
 
-![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![Swift 5](https://img.shields.io/badge/Swift-5.9-orange) ![Free](https://img.shields.io/badge/price-free-brightgreen)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![Swift 5](https://img.shields.io/badge/Swift-5.9-orange) ![Free](https://img.shields.io/badge/price-free-brightgreen) ![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)
 
 > Early build, not yet notarized - on first launch right-click the app → Open,
 > or allow it under System Settings → Privacy & Security.

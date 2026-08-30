@@ -47,7 +47,7 @@ https://github.com/monzdigital/brewer/community listesini tamamla:
 - [x] CONTRIBUTING.md (derleme, selftest, stil kuralları)
 - [x] SECURITY.md (GitHub private vulnerability reporting)
 - [x] Issue şablonları (bug + özellik) ve PR şablonu
-- [ ] LICENSE - tür seçimi kullanıcıya soruldu (MIT önerisi); seçilince eklenecek
+- [x] LICENSE - kullanıcı GPL-3.0 seçti, eklendi
 - [ ] (İsteğe bağlı) Repo Settings → Security → "Private vulnerability reporting"ı aç
 
 ### Resmi Homebrew'a (homebrew/cask) girme yol haritası
