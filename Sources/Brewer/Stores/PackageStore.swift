@@ -124,16 +124,32 @@ final class PackageStore {
 
     nonisolated static func resolveAppPath(for json: CaskJSON) -> String? {
         let fileManager = FileManager.default
-        for appName in json.appNames {
+        let appNames = json.appNames
+        for appName in appNames {
             for base in ["/Applications", NSHomeDirectory() + "/Applications"] {
                 let candidate = base + "/" + appName
                 if fileManager.fileExists(atPath: candidate) { return candidate }
             }
         }
-        // Fall back to a name-based guess for casks whose artifact list is empty.
+        // Name-based guess for casks whose artifact list is empty.
         if let displayName = json.name?.first {
             let candidate = "/Applications/\(displayName).app"
             if fileManager.fileExists(atPath: candidate) { return candidate }
+        }
+        // Fall back to the Caskroom copy (the app may have been moved or removed
+        // from /Applications but still exists inside the keg).
+        let caskroomDir = BrewEnvironment.current.caskroomPath + "/" + json.token
+        if let versions = try? fileManager.contentsOfDirectory(atPath: caskroomDir) {
+            for version in versions.sorted(by: >) where !version.hasPrefix(".") {
+                let versionDir = caskroomDir + "/" + version
+                guard let entries = try? fileManager.contentsOfDirectory(atPath: versionDir) else { continue }
+                if let match = appNames.first(where: { entries.contains($0) }) {
+                    return versionDir + "/" + match
+                }
+                if let anyApp = entries.first(where: { $0.hasSuffix(".app") }) {
+                    return versionDir + "/" + anyApp
+                }
+            }
         }
         return nil
     }
