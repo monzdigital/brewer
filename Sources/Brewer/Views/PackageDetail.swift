@@ -121,6 +121,26 @@ struct PackageDetailView: View {
 
             if live.isInstalled {
                 Menu {
+                    Button("Reinstall") {
+                        Task { await app.packages.reinstall(live) }
+                    }
+                    if let appPath = live.appPath {
+                        Button("Reveal in Finder") {
+                            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: appPath)])
+                        }
+                    }
+                    if live.kind == .formula {
+                        if live.isUnexpectedlyUnlinked {
+                            Button("Link") {
+                                Task { await app.packages.setLinked(live, linked: true) }
+                            }
+                        } else if live.isLinked {
+                            Button("Unlink") {
+                                Task { await app.packages.setLinked(live, linked: false) }
+                            }
+                        }
+                    }
+                    Divider()
                     Button("Uninstall", role: .destructive) {
                         Task { await app.packages.uninstall([live]) }
                     }
@@ -130,7 +150,7 @@ struct PackageDetailView: View {
                         }
                     }
                 } label: {
-                    Label("Uninstall", systemImage: "trash")
+                    Label("More", systemImage: "ellipsis.circle")
                 }
                 .fixedSize()
 
@@ -141,6 +161,20 @@ struct PackageDetailView: View {
                         Label(live.isPinned ? "Unpin" : "Pin", systemImage: live.isPinned ? "pin.slash" : "pin")
                     }
                     .help("Pinned formulae are skipped by brew upgrade")
+                } else if app.meta.snoozes[live.id] != nil {
+                    Button {
+                        app.meta.unsnooze(live.id)
+                    } label: {
+                        Label("Unsnooze", systemImage: "moon.zzz")
+                    }
+                    .help("Updates for this cask are currently ignored")
+                } else {
+                    Button {
+                        app.meta.snooze(live.id, until: nil, version: nil)
+                    } label: {
+                        Label("Ignore Updates", systemImage: "moon.zzz")
+                    }
+                    .help("Casks can't be pinned by brew; Brewer hides their updates until you unsnooze")
                 }
             }
 
@@ -192,6 +226,14 @@ struct PackageDetailView: View {
                 }
                 if live.kind == .cask {
                     InfoRow(label: "Auto-updates itself", value: live.autoUpdates ? "Yes" : "No")
+                }
+                if live.kind == .formula, live.isInstalled {
+                    if live.isKegOnly {
+                        InfoRow(label: "Keg-only", value: live.kegOnlyReason ?? "Not linked into the prefix by design")
+                    } else {
+                        InfoRow(label: "Linked", value: live.isLinked ? "Yes" : "No - binaries are not on PATH",
+                                valueColor: live.isLinked ? nil : .orange)
+                    }
                 }
                 if let date = live.installedDate {
                     InfoRow(label: "Installed", value: date.formatted(date: .abbreviated, time: .omitted))

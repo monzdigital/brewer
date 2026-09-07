@@ -1,19 +1,39 @@
 import Foundation
 
 /// Scans /Applications and reads app bundle metadata. Shared by the Adopt Apps,
-/// App Updates (Sparkle) and Apple Silicon features.
+/// App Updates (Sparkle), Apps inventory and Apple Silicon features.
 enum AppScanner {
 
-    static func scanApplications() -> [ScannedApp] {
+    static var applicationRoots: [String] {
+        ["/Applications", NSHomeDirectory() + "/Applications"]
+    }
+
+    /// Lists app bundles in the application folders. With `includeSubfolders`
+    /// one level of plain folders is searched too (Setapp, Utilities, Adobe …),
+    /// which is where a large share of manually installed apps live.
+    static func scanApplications(includeSubfolders: Bool = true) -> [ScannedApp] {
         let fileManager = FileManager.default
         var appURLs: [URL] = []
-        for base in ["/Applications", NSHomeDirectory() + "/Applications"] {
+        var seen: Set<String> = []
+
+        func collect(in directory: URL, descend: Bool) {
             guard let entries = try? fileManager.contentsOfDirectory(
-                at: URL(fileURLWithPath: base),
-                includingPropertiesForKeys: nil,
+                at: directory,
+                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
                 options: [.skipsHiddenFiles]
-            ) else { continue }
-            appURLs.append(contentsOf: entries.filter { $0.pathExtension == "app" })
+            ) else { return }
+            for entry in entries {
+                let values = try? entry.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                if entry.pathExtension == "app" {
+                    if seen.insert(entry.path).inserted { appURLs.append(entry) }
+                } else if descend, values?.isDirectory == true, values?.isSymbolicLink != true {
+                    collect(in: entry, descend: false)
+                }
+            }
+        }
+
+        for base in applicationRoots {
+            collect(in: URL(fileURLWithPath: base), descend: includeSubfolders)
         }
 
         return appURLs.compactMap { url in
@@ -34,7 +54,8 @@ enum AppScanner {
             ?? (plist["CFBundleName"] as? String)
             ?? url.deletingPathExtension().lastPathComponent
         let bundleID = plist["CFBundleIdentifier"] as? String
-        let shortVersion = (plist["CFBundleShortVersionString"] as? String) ?? (plist["CFBundleVersion"] as? String)
+        let bundleVersion = plist["CFBundleVersion"] as? String
+        let shortVersion = (plist["CFBundleShortVersionString"] as? String) ?? bundleVersion
 
         var executableURL: URL?
         if let executable = plist["CFBundleExecutable"] as? String {
@@ -45,6 +66,7 @@ enum AppScanner {
         if let feedString = plist["SUFeedURL"] as? String {
             feedURL = URL(string: feedString.trimmingCharacters(in: .whitespacesAndNewlines))
         }
+        let publicKey = (plist["SUPublicEDKey"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let receiptPath = url.appendingPathComponent("Contents/_MASReceipt/receipt").path
         let hasReceipt = FileManager.default.fileExists(atPath: receiptPath)
@@ -54,8 +76,10 @@ enum AppScanner {
             name: name,
             bundleID: bundleID,
             shortVersion: shortVersion,
+            bundleVersion: bundleVersion,
             executableURL: executableURL,
             sparkleFeedURL: feedURL,
+            sparklePublicKey: publicKey,
             hasMASReceipt: hasReceipt
         )
     }
@@ -63,11 +87,16 @@ enum AppScanner {
     // MARK: Sparkle appcast
 
     struct AppcastResult {
+        /// Marketing version for display (falls back to the build number).
         let version: String
+        /// sparkle:version - the build number, when the feed provides one.
+        let buildVersion: String?
         let downloadURL: URL?
         let releaseNotesURL: URL?
         let notesHTML: String?
         let enclosureBytes: Int64?
+        let edSignature: String?
+        let minimumSystemVersion: String?
     }
 
     static func latestAppcastVersion(feedURL: URL) async -> AppcastResult? {
@@ -77,52 +106,78 @@ enum AppScanner {
     }
 }
 
-/// Minimal Sparkle appcast (RSS) parser.
+/// Minimal Sparkle appcast (RSS) parser. Ignores beta channels, Windows
+/// enclosures (WinSparkle feeds) and items that need a newer macOS than the one
+/// running - offering those would break the app on install.
 final class AppcastParser: NSObject, XMLParserDelegate {
 
-    private struct Item {
+    struct Item {
         var version: String?
         var shortVersion: String?
         var enclosureURL: String?
         var enclosureLength: Int64?
+        var edSignature: String?
+        var os: String?
+        var minimumSystemVersion: String?
         var releaseNotesLink: String?
         var link: String?
         var channel: String?
         var descriptionHTML: String?
 
-        var effectiveVersion: String? { shortVersion ?? version }
+        var displayVersion: String? { shortVersion ?? version }
+        /// The value Sparkle compares: build number first, marketing version otherwise.
+        var comparableVersion: String? { version ?? shortVersion }
     }
 
     private var items: [Item] = []
     private var currentItem: Item?
-    private var currentElement = ""
     private var currentText = ""
+
+    /// The running macOS version, injectable for tests.
+    var systemVersion: String = {
+        let v = ProcessInfo.processInfo.operatingSystemVersion
+        return "\(v.majorVersion).\(v.minorVersion).\(v.patchVersion)"
+    }()
 
     func parse(data: Data) -> AppScanner.AppcastResult? {
         let parser = XMLParser(data: data)
         parser.delegate = self
         parser.parse()
+        return Self.best(of: items, systemVersion: systemVersion)
+    }
 
-        let stableItems = items.filter { item in
-            guard let version = item.effectiveVersion, !version.isEmpty else { return false }
+    static func best(of items: [Item], systemVersion: String) -> AppScanner.AppcastResult? {
+        let eligible = items.filter { item in
+            guard let version = item.comparableVersion, !version.isEmpty else { return false }
             // Skip beta/alternate channels.
-            return item.channel == nil || item.channel?.isEmpty == true
+            guard item.channel == nil || item.channel?.isEmpty == true else { return false }
+            if let os = item.os?.lowercased(), !os.isEmpty, os != "macos", os != "osx", os != "mac" {
+                return false
+            }
+            if let minimum = item.minimumSystemVersion, !minimum.isEmpty,
+               VersionCompare.isNewer(minimum, than: systemVersion) {
+                return false
+            }
+            return true
         }
-        guard var best = stableItems.first else { return nil }
-        for item in stableItems.dropFirst() {
-            if let a = item.effectiveVersion, let b = best.effectiveVersion,
+        guard var best = eligible.first else { return nil }
+        for item in eligible.dropFirst() {
+            if let a = item.comparableVersion, let b = best.comparableVersion,
                VersionCompare.isNewer(a, than: b) {
                 best = item
             }
         }
-        guard let version = best.effectiveVersion else { return nil }
+        guard let display = best.displayVersion else { return nil }
         let notes = best.releaseNotesLink ?? best.link
         return AppScanner.AppcastResult(
-            version: version,
+            version: display,
+            buildVersion: best.version,
             downloadURL: best.enclosureURL.flatMap(URL.init(string:)),
             releaseNotesURL: notes.flatMap(URL.init(string:)),
             notesHTML: best.descriptionHTML,
-            enclosureBytes: best.enclosureLength
+            enclosureBytes: best.enclosureLength,
+            edSignature: best.edSignature,
+            minimumSystemVersion: best.minimumSystemVersion
         )
     }
 
@@ -130,7 +185,6 @@ final class AppcastParser: NSObject, XMLParserDelegate {
 
     func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?,
                 qualifiedName: String?, attributes: [String: String] = [:]) {
-        currentElement = elementName
         currentText = ""
         switch elementName {
         case "item":
@@ -140,6 +194,9 @@ final class AppcastParser: NSObject, XMLParserDelegate {
             if let version = attributes["sparkle:version"] { currentItem?.version = version }
             if let short = attributes["sparkle:shortVersionString"] { currentItem?.shortVersion = short }
             if let length = attributes["length"].flatMap({ Int64($0) }) { currentItem?.enclosureLength = length }
+            if let signature = attributes["sparkle:edSignature"] { currentItem?.edSignature = signature }
+            if let os = attributes["sparkle:os"] { currentItem?.os = os }
+            if let minimum = attributes["sparkle:minimumSystemVersion"] { currentItem?.minimumSystemVersion = minimum }
         default:
             break
         }
@@ -161,6 +218,8 @@ final class AppcastParser: NSObject, XMLParserDelegate {
             if currentItem?.version == nil { currentItem?.version = text }
         case "sparkle:shortVersionString":
             if currentItem?.shortVersion == nil { currentItem?.shortVersion = text }
+        case "sparkle:minimumSystemVersion":
+            if currentItem?.minimumSystemVersion == nil { currentItem?.minimumSystemVersion = text }
         case "sparkle:releaseNotesLink":
             currentItem?.releaseNotesLink = text
         case "sparkle:channel":

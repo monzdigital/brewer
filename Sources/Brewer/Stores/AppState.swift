@@ -43,7 +43,8 @@ final class AppState {
         self.console = console
         let packages = PackageStore(console: console)
         self.packages = packages
-        self.meta = MetaStore()
+        let meta = MetaStore()
+        self.meta = meta
         let history = HistoryStore()
         self.history = history
         self.services = ServicesStore(console: console)
@@ -53,13 +54,15 @@ final class AppState {
         self.duplicates = DuplicatesStore(console: console)
         self.discover = DiscoverStore()
         self.adopt = AdoptStore(console: console, packages: packages)
-        self.appUpdates = AppUpdatesStore()
+        let appUpdates = AppUpdatesStore()
+        self.appUpdates = appUpdates
         self.arch = ArchitectureStore()
         self.mas = MasStore(console: console)
         self.scheduler = UpdateScheduler(packages: packages)
         self.inventory = AppsInventoryStore()
         self.uninstaller = UninstallerStore(console: console, packages: packages)
-        self.installer = AppUpdateInstaller()
+        let installer = AppUpdateInstaller()
+        self.installer = installer
 
         AppState.shared = self
 
@@ -72,17 +75,26 @@ final class AppState {
                 case .succeeded:
                     NotificationManager.post(
                         title: "Completed: \(operation.title)",
-                        body: "Finished in \(Format.duration(operation.duration))."
+                        body: "Finished in \(Format.duration(operation.duration)).",
+                        page: .console
                     )
                 case .failed(let code):
                     NotificationManager.post(
                         title: "Failed: \(operation.title)",
-                        body: "Exited with code \(code) - see the console for details."
+                        body: "Exited with code \(code) - see the console for details.",
+                        page: .console
                     )
                 default:
                     break
                 }
             }
+        }
+        packages.onRefreshed = { [weak meta, weak packages] in
+            guard let meta, let packages, !packages.allPackages.isEmpty else { return }
+            meta.pruneStaleSnoozes(packages: packages.allPackages)
+        }
+        installer.onInstalled = { [weak appUpdates] path in
+            await appUpdates?.refreshApp(atPath: path)
         }
     }
 
@@ -93,11 +105,14 @@ final class AppState {
         NotificationManager.requestAuthorizationIfNeeded()
         uninstaller.startTrashWatcherIfEnabled()
         await packages.refresh()
-        scheduler.start()
+        scheduler.visibleUpdates = { [weak self] in
+            self?.packages(in: .updates) ?? []
+        }
         scheduler.onScheduledCheck = { [weak self] in
             guard let self else { return }
             await self.appUpdates.scan(casks: self.packages.casks)
         }
+        scheduler.start()
         Task { [weak self] in
             await self?.installer.loadBackups()
         }
@@ -119,6 +134,13 @@ final class AppState {
         }
     }
 
+    /// Everything the user quits with: pending metadata writes and any brew
+    /// process that would otherwise be orphaned holding Homebrew's lock.
+    func prepareForTermination() {
+        meta.flushPendingSave()
+        console.terminateCurrent()
+    }
+
     // MARK: Scope resolution
 
     func packages(in scope: BrowserScope) -> [BrewPackage] {
@@ -136,7 +158,7 @@ final class AppState {
         case .pinned:
             return packages.allPackages.filter { $0.isPinned }
         case .snoozed:
-            return packages.allPackages.filter { meta.snoozedIDs.contains($0.id) }
+            return packages.outdatedPackages.filter { meta.isSnoozed($0.id, latestVersion: $0.latestVersion) }
         case .tag(let tag):
             let ids = meta.packageIDs(withTag: tag)
             return packages.allPackages.filter { ids.contains($0.id) }
@@ -150,5 +172,16 @@ final class AppState {
     /// Count of updates not snoozed - used for sidebar and menu bar badges.
     var visibleUpdateCount: Int {
         packages(in: .updates).count
+    }
+
+    /// Updates currently hidden by a snooze.
+    var snoozedUpdateCount: Int {
+        packages(in: .snoozed).count
+    }
+
+    /// "Upgrade All" as the user sees it: everything outdated except snoozed packages.
+    func upgradeAllVisible() async {
+        let snoozed = Set(packages(in: .snoozed).map(\.id))
+        await packages.upgradeAll(excluding: snoozed)
     }
 }

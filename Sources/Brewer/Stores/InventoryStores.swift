@@ -31,9 +31,8 @@ final class AppsInventoryStore {
         defer { isScanning = false }
 
         let caskByPath: [String: String] = Dictionary(
-            uniqueKeysWithValues: casks.compactMap { cask in
-                cask.appPath.map { ($0, cask.name) }
-            }
+            casks.compactMap { cask in cask.appPath.map { ($0, cask.name) } },
+            uniquingKeysWith: { first, _ in first }
         )
 
         let scanned = await Task.detached(priority: .utility) { () -> [(ScannedApp, Set<String>)] in
@@ -113,6 +112,9 @@ final class UninstallerStore {
     var recentlyTrashed: [ScannedApp] = []
     private var trashWatcher: DispatchSourceFileSystemObject?
     private var knownTrashApps: Set<String> = []
+    /// Bundle names Brewer itself just trashed - the watcher must not offer to
+    /// clean up an app we already cleaned up.
+    private var trashedByBrewer: Set<String> = []
 
     private unowned let console: TaskConsole
     private unowned let packages: PackageStore
@@ -187,6 +189,7 @@ final class UninstallerStore {
             notes.append(ok ? "Removed via Homebrew (\(token))." : "brew uninstall \(token) failed - see the console.")
             await packages.refresh()
         } else if includeAppItself && review.appStillOnDisk {
+            trashedByBrewer.insert(review.app.url.lastPathComponent)
             let result = LeftoverScanner.moveToTrash(paths: [review.app.url.path])
             if result.trashed.isEmpty {
                 notes.append("Could not move the app to the Trash: \(result.failed.first?.reason ?? "unknown error")")
@@ -208,7 +211,7 @@ final class UninstallerStore {
 
         resultMessage = notes.joined(separator: " ")
         if UserDefaults.standard.bool(forKey: Prefs.notifyOnOperations) {
-            NotificationManager.post(title: "\(review.app.name) removed", body: resultMessage ?? "")
+            NotificationManager.post(title: "\(review.app.name) removed", body: resultMessage ?? "", page: .uninstaller)
         }
         self.review = nil
         leftovers = []
@@ -262,6 +265,7 @@ final class UninstallerStore {
         let added = current.subtracting(knownTrashApps)
         knownTrashApps = current
         for name in added {
+            if trashedByBrewer.remove(name) != nil { continue }
             let url = URL(fileURLWithPath: trashPath + "/" + name)
             guard let scanned = AppScanner.scanApp(at: url),
                   !LeftoverScanner.isProtected(bundleID: scanned.bundleID, appURL: url) else { continue }
@@ -271,7 +275,8 @@ final class UninstallerStore {
             }
             NotificationManager.post(
                 title: "\(scanned.name) moved to Trash",
-                body: "Brewer can also remove its leftover files - open the Uninstaller."
+                body: "Brewer can also remove its leftover files - click to open the Uninstaller.",
+                page: .uninstaller
             )
         }
     }

@@ -113,12 +113,12 @@ private struct SparkleUpdateRow: View {
                     }
                 }
                 HStack(spacing: 4) {
-                    Text(update.currentVersion)
+                    Text(update.currentVersionDisplay)
                         .font(.caption)
                         .foregroundStyle(update.hasUpdate ? Color.secondary : Color.green)
                     if update.hasUpdate {
                         Image(systemName: "arrow.right").font(.caption2).foregroundStyle(.tertiary)
-                        Text(update.latestVersion)
+                        Text(update.latestVersionDisplay)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.blue)
                         if let bytes = update.enclosureBytes {
@@ -161,6 +161,8 @@ private struct SparkleUpdateRow: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+        case .verifying:
+            Text("Verifying signature…").font(.caption2).foregroundStyle(.secondary)
         case .backingUp:
             Text("Backing up current version…").font(.caption2).foregroundStyle(.secondary)
         case .extracting:
@@ -175,7 +177,8 @@ private struct SparkleUpdateRow: View {
             Label(reason, systemImage: "xmark.circle")
                 .font(.caption2)
                 .foregroundStyle(.red)
-                .lineLimit(1)
+                .lineLimit(2)
+                .help(reason)
         }
     }
 

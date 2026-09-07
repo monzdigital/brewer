@@ -57,14 +57,29 @@ struct TapsView: View {
         }
         .alert("Add Tap", isPresented: $addingTap) {
             TextField("user/repo", text: $newTapName)
-            Button("Add") {
-                let name = newTapName
-                newTapName = ""
-                Task { _ = await app.taps.addTap(name) }
+            if app.taps.supportsTrust {
+                Button("Add & Trust") {
+                    let name = newTapName
+                    newTapName = ""
+                    Task { _ = await app.taps.addTap(name, trust: true) }
+                }
+                Button("Add Only") {
+                    let name = newTapName
+                    newTapName = ""
+                    Task { _ = await app.taps.addTap(name, trust: false) }
+                }
+            } else {
+                Button("Add") {
+                    let name = newTapName
+                    newTapName = ""
+                    Task { _ = await app.taps.addTap(name, trust: false) }
+                }
             }
             Button("Cancel", role: .cancel) { newTapName = "" }
         } message: {
-            Text("Enter the tap in user/repo form, e.g. supabase/tap")
+            Text(app.taps.supportsTrust
+                 ? "Enter the tap in user/repo form, e.g. supabase/tap. Homebrew 6 only installs packages from taps you trust - choose \"Add & Trust\" if you know the publisher."
+                 : "Enter the tap in user/repo form, e.g. supabase/tap")
         }
         .confirmationDialog(
             "Remove tap \(tapToRemove?.name ?? "")?",
@@ -97,7 +112,15 @@ private struct TapRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(tap.name).fontWeight(.medium)
-                    if tap.isOfficial { TinyBadge(text: "official", color: .green) }
+                    if tap.isOfficial {
+                        TinyBadge(text: "official", color: .green)
+                    } else if app.taps.supportsTrust {
+                        if app.taps.isTrusted(tap.name) {
+                            TinyBadge(text: "trusted", color: .green)
+                        } else {
+                            TinyBadge(text: "not trusted - installs will fail", color: .orange)
+                        }
+                    }
                 }
                 if let info {
                     Text("\(info.formula_names?.count ?? 0) formulae · \(info.cask_tokens?.count ?? 0) casks")
@@ -108,6 +131,17 @@ private struct TapRowView: View {
                 }
             }
             Spacer()
+            if app.taps.supportsTrust, !tap.isOfficial, !app.taps.isTrusted(tap.name) {
+                if app.console.isPending(subject: "tap:\(tap.name)") {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button("Trust") {
+                        Task { await app.taps.trust(tap.name) }
+                    }
+                    .controlSize(.small)
+                    .help("Allow Homebrew to install packages from this tap (brew trust --tap)")
+                }
+            }
             if let remote = info?.remote, let url = URL(string: remote) {
                 Link(destination: url) {
                     Image(systemName: "arrow.up.right.square")

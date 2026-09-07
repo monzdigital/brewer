@@ -71,12 +71,15 @@ struct UpdatesView: View {
             }
             .help("Refresh Homebrew's package data")
             Button {
-                Task { await app.packages.upgradeAll() }
+                Task { await app.upgradeAllVisible() }
             } label: {
                 Label("Upgrade All", systemImage: "arrow.triangle.2.circlepath")
             }
             .buttonStyle(.borderedProminent)
             .disabled(updates.isEmpty)
+            .help(app.snoozedUpdateCount > 0
+                  ? "Upgrades every listed package - \(app.snoozedUpdateCount) snoozed update(s) stay untouched"
+                  : "Upgrade every outdated package")
         }
         .padding(12)
     }
@@ -89,9 +92,9 @@ struct UpdatesView: View {
                 ContentUnavailableView(
                     "Everything is up to date",
                     systemImage: "checkmark.seal",
-                    description: Text(app.meta.snoozedIDs.isEmpty
+                    description: Text(app.snoozedUpdateCount == 0
                         ? "All installed packages are at their latest version."
-                        : "Some updates may be snoozed - check the Snoozed section.")
+                        : "\(app.snoozedUpdateCount) update\(app.snoozedUpdateCount == 1 ? " is" : "s are") snoozed - check the Snoozed section.")
                 )
                 Spacer()
             }

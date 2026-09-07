@@ -59,13 +59,27 @@ enum LeftoverScanner {
         if let bundleID = bundleID?.lowercased(), bundleID.count >= 6 {
             if lowerItem == bundleID { return .bundleID }
             if lowerItem.hasPrefix(bundleID + ".") { return .bundleID }
-            if lowerItem.contains(bundleID) { return .bundleID } // e.g. "group.com.foo.app", "TEAMID.com.foo.app"
+            // "group.com.foo.app", "TEAMID.com.foo.app", "com.foo.app.helper.plist" -
+            // but only at dot boundaries, so "com.foo.bar" never claims "com.foo.barbaz".
+            if containsAtDotBoundary(lowerItem, needle: bundleID) { return .bundleID }
         }
         guard allowNameMatch else { return nil }
         let lowerApp = appName.lowercased().trimmingCharacters(in: .whitespaces)
         guard lowerApp.count >= 4 else { return nil }
         if lowerItem == lowerApp { return .nameMatch }
         return nil
+    }
+
+    static func containsAtDotBoundary(_ haystack: String, needle: String) -> Bool {
+        var searchRange = haystack.startIndex..<haystack.endIndex
+        while let range = haystack.range(of: needle, range: searchRange) {
+            let beforeOK = range.lowerBound == haystack.startIndex || haystack[haystack.index(before: range.lowerBound)] == "."
+            let afterOK = range.upperBound == haystack.endIndex || haystack[range.upperBound] == "."
+            if beforeOK && afterOK { return true }
+            guard range.upperBound < haystack.endIndex else { break }
+            searchRange = haystack.index(after: range.lowerBound)..<haystack.endIndex
+        }
+        return false
     }
 
     // MARK: Scanning

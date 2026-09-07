@@ -66,7 +66,7 @@ struct SearchView: View {
                         .foregroundStyle(.secondary)
                     Button("Add Tap & Install") {
                         Task {
-                            if await app.taps.addTap(qualified.tap) {
+                            if await app.taps.addTap(qualified.tap, trust: true) {
                                 await app.packages.install(name: query, kind: .formula)
                             }
                         }

@@ -32,8 +32,18 @@ struct BrewPackage: Identifiable, Hashable {
     var autoUpdates: Bool = false
     var appPath: String?
     var installedDate: Date?
+    var isKegOnly: Bool = false
+    var kegOnlyReason: String?
+    /// Formulae only: whether the keg is linked into the prefix (`linked_keg`).
+    var isLinked: Bool = true
 
     var id: String { Self.makeID(kind: kind, name: name) }
+
+    /// An installed, non-keg-only formula that isn't linked - its binaries are
+    /// not on PATH, which is almost always unintended.
+    var isUnexpectedlyUnlinked: Bool {
+        kind == .formula && isInstalled && !isLinked && !isKegOnly
+    }
 
     static func makeID(kind: PackageKind, name: String) -> String {
         "\(kind.rawValue):\(name)"
@@ -166,9 +176,23 @@ struct ScannedApp: Identifiable, Hashable {
     let name: String
     let bundleID: String?
     let shortVersion: String?
+    /// CFBundleVersion - the build number Sparkle actually compares.
+    let bundleVersion: String?
     let executableURL: URL?
     let sparkleFeedURL: URL?
+    /// SUPublicEDKey (base64 Ed25519 key) when the app verifies its own updates.
+    let sparklePublicKey: String?
     let hasMASReceipt: Bool
+
+    /// Apple's own software (never adopt, never uninstall).
+    var isAppleApp: Bool { bundleID?.hasPrefix("com.apple.") ?? false }
+
+    /// True for apps sitting directly in /Applications or ~/Applications
+    /// (the only locations `brew install --adopt` can take over).
+    var isTopLevel: Bool {
+        let parent = url.deletingLastPathComponent().path
+        return parent == "/Applications" || parent == NSHomeDirectory() + "/Applications"
+    }
 }
 
 struct SparkleUpdate: Identifiable, Hashable {
@@ -182,9 +206,39 @@ struct SparkleUpdate: Identifiable, Hashable {
     var notesHTML: String?
     var enclosureBytes: Int64?
     var managedByCask: String?
+    var currentBuild: String?
+    var latestBuild: String?
+    var edSignature: String?
+    var publicKey: String?
 
+    /// Sparkle's own rule: when both sides carry a build number (CFBundleVersion /
+    /// sparkle:version) that decides; the marketing version is only a fallback.
     var hasUpdate: Bool {
-        VersionCompare.isNewer(latestVersion, than: currentVersion)
+        Self.isUpdate(currentVersion: currentVersion, latestVersion: latestVersion,
+                      currentBuild: currentBuild, latestBuild: latestBuild)
+    }
+
+    /// A rebuild of the same marketing version ("4.0.10" build 4165 -> 4166)
+    /// would otherwise read as "4.0.10 -> 4.0.10", so the build is shown then.
+    private var showsBuilds: Bool {
+        guard let currentBuild, let latestBuild, currentBuild != latestBuild else { return false }
+        return VersionCompare.compare(currentVersion, latestVersion) == .orderedSame
+    }
+
+    var currentVersionDisplay: String {
+        showsBuilds ? "\(currentVersion) (\(currentBuild ?? ""))" : currentVersion
+    }
+
+    var latestVersionDisplay: String {
+        showsBuilds ? "\(latestVersion) (\(latestBuild ?? ""))" : latestVersion
+    }
+
+    static func isUpdate(currentVersion: String, latestVersion: String,
+                         currentBuild: String?, latestBuild: String?) -> Bool {
+        if let latestBuild, let currentBuild, !latestBuild.isEmpty, !currentBuild.isEmpty {
+            return VersionCompare.isNewer(latestBuild, than: currentBuild)
+        }
+        return VersionCompare.isNewer(latestVersion, than: currentVersion)
     }
 }
 

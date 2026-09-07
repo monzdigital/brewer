@@ -68,6 +68,17 @@ struct ConsolePanel: View {
                     }
                 }
                 .tag(operation.id)
+                .contextMenu {
+                    if !operation.state.isFinished {
+                        Button(operation.state == .queued ? "Cancel" : "Stop", role: .destructive) {
+                            console.cancel(operation)
+                        }
+                    }
+                    Button("Copy Command") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(operation.commandLine, forType: .string)
+                    }
+                }
             }
         }
         .listStyle(.inset)
@@ -167,11 +178,19 @@ struct ConsolePanel: View {
                     Spacer()
                     if operation.state == .running {
                         Button(role: .destructive) {
-                            app.console.terminateCurrent()
+                            app.console.cancel(operation)
                         } label: {
                             Label("Stop", systemImage: "stop.fill")
                         }
                         .controlSize(.small)
+                    } else if operation.state == .queued {
+                        Button(role: .destructive) {
+                            app.console.cancel(operation)
+                        } label: {
+                            Label("Cancel", systemImage: "xmark.circle")
+                        }
+                        .controlSize(.small)
+                        .help("Remove this operation from the queue before it starts")
                     }
                 }
                 .padding(.horizontal, 12)

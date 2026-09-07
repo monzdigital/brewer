@@ -1,4 +1,5 @@
 import SwiftUI
+import ServiceManagement
 
 struct SettingsView: View {
     var body: some View {
@@ -23,12 +24,42 @@ private struct GeneralSettings: View {
     @AppStorage(Prefs.autoOpenConsole) private var autoOpenConsole = true
     @AppStorage(Prefs.compactRows) private var compactRows = false
     @AppStorage(Prefs.notifyOnOperations) private var notifyOnOperations = true
+    @AppStorage(Prefs.hideDockIcon) private var hideDockIcon = false
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var loginItemError: String?
 
     var body: some View {
         Form {
             Text("The menu bar icon shows how many packages are outdated at a glance.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            Toggle("Menu bar only - hide the Dock icon", isOn: $hideDockIcon)
+                .onChange(of: hideDockIcon) { _, hidden in
+                    DockIcon.apply(hidden: hidden)
+                }
+            Text("Use \"Open Brewer\" in the menu bar to bring the window back.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Toggle("Launch Brewer at login", isOn: $launchAtLogin)
+                .onChange(of: launchAtLogin) { _, enabled in
+                    do {
+                        if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+                        loginItemError = nil
+                    } catch {
+                        loginItemError = error.localizedDescription
+                        launchAtLogin = SMAppService.mainApp.status == .enabled
+                    }
+                }
+            if let loginItemError {
+                Text(loginItemError).font(.caption).foregroundStyle(.red)
+            } else {
+                Text("Keeps the menu bar counter and scheduled update checks running after a restart.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Divider().padding(.vertical, 4)
 
@@ -60,6 +91,7 @@ private struct UpdateSettings: View {
     @AppStorage(Prefs.autoUpgrade) private var autoUpgrade = false
     @AppStorage(Prefs.batteryAware) private var batteryAware = true
     @AppStorage(Prefs.closeAppsBeforeUpgrade) private var closeApps = true
+    @AppStorage(Prefs.relaunchAppsAfterUpgrade) private var relaunchApps = true
     @AppStorage(Prefs.greedyCasks) private var greedyCasks = false
     @AppStorage(Prefs.backupBeforeUpdate) private var backupBeforeUpdate = true
 
@@ -85,11 +117,18 @@ private struct UpdateSettings: View {
             Divider().padding(.vertical, 4)
 
             Toggle("Close running apps cleanly before upgrading them", isOn: $closeApps)
+            Toggle("Reopen those apps when the upgrade is done", isOn: $relaunchApps)
+                .disabled(!closeApps)
+                .padding(.leading, 18)
             Toggle("Back up apps before direct updates (App Updates)", isOn: $backupBeforeUpdate)
-            Toggle("Include self-updating casks (--greedy)", isOn: $greedyCasks)
-            Text("Greedy upgrades also update casks that normally update themselves (marked “auto-updates”).")
+            Toggle("Include self-updating casks (--greedy-auto-updates)", isOn: $greedyCasks)
+                .onChange(of: greedyCasks) { _, _ in
+                    Task { await app.packages.refresh() }
+                }
+            Text("Self-updating casks then appear in Updates and are part of Upgrade All.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Divider().padding(.vertical, 4)
 

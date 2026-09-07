@@ -23,14 +23,16 @@ final class MetaStore {
 
     private var saveTask: Task<Void, Never>?
 
-    static let storageDirectory: URL = {
+    nonisolated static let storageDirectory: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("Brewer", isDirectory: true)
     }()
 
-    private var fileURL: URL { Self.storageDirectory.appendingPathComponent("metadata.json") }
+    private let fileURL: URL
 
-    init() {
+    /// `fileURL` is injectable so self-tests never touch the real metadata file.
+    init(fileURL: URL = MetaStore.storageDirectory.appendingPathComponent("metadata.json")) {
+        self.fileURL = fileURL
         load()
     }
 
@@ -129,7 +131,11 @@ final class MetaStore {
     /// A snooze is active while its date hasn't passed and/or the snoozed version is still the latest.
     func isSnoozed(_ id: String, latestVersion: String?) -> Bool {
         guard let info = snoozes[id] else { return false }
-        if let until = info.until, until > Date() { return true }
+        return Self.isActive(info, latestVersion: latestVersion)
+    }
+
+    nonisolated static func isActive(_ info: SnoozeInfo, latestVersion: String?, now: Date = Date()) -> Bool {
+        if let until = info.until, until > now { return true }
         if let version = info.version, let latest = latestVersion, version == latest { return true }
         if info.until == nil && info.version == nil { return true }
         return false
@@ -137,7 +143,37 @@ final class MetaStore {
 
     var snoozedIDs: Set<String> { Set(snoozes.keys) }
 
+    /// Snoozes that no longer hide anything: expired timers, skipped versions
+    /// that were installed in the meantime, and versions superseded by a newer
+    /// release. Pure so the self-test can exercise it off the main actor.
+    nonisolated static func staleSnoozeIDs(
+        _ snoozes: [String: SnoozeInfo], packages: [BrewPackage], now: Date = Date()
+    ) -> [String] {
+        let byID = Dictionary(packages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return snoozes.compactMap { id, info in
+            guard let package = byID[id] else { return nil }
+            let alreadyInstalled = info.version != nil && info.version == package.installedVersion
+            let stale = alreadyInstalled || !isActive(info, latestVersion: package.latestVersion, now: now)
+            return stale ? id : nil
+        }
+    }
+
+    func pruneStaleSnoozes(packages: [BrewPackage]) {
+        let stale = Self.staleSnoozeIDs(snoozes, packages: packages)
+        guard !stale.isEmpty else { return }
+        for id in stale { snoozes[id] = nil }
+        scheduleSave()
+    }
+
     // MARK: Persistence
+
+    /// Writes any debounced change immediately (called when the app quits).
+    func flushPendingSave() {
+        guard saveTask != nil else { return }
+        saveTask?.cancel()
+        saveTask = nil
+        saveNow()
+    }
 
     private func load() {
         guard let data = try? Data(contentsOf: fileURL),
@@ -167,7 +203,9 @@ final class MetaStore {
             snoozes: snoozes
         )
         do {
-            try FileManager.default.createDirectory(at: Self.storageDirectory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
+            )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try encoder.encode(payload)

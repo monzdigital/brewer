@@ -66,18 +66,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         if NotificationManager.isAvailable {
             UNUserNotificationCenter.current().delegate = self
         }
+        MainActor.assumeIsolated {
+            DockIcon.apply(hidden: UserDefaults.standard.bool(forKey: Prefs.hideDockIcon))
+        }
     }
 
-    // Don't leave orphaned brew processes running (they hold Homebrew's lock).
+    /// An app dropped onto the Dock icon (or opened with Brewer) goes straight
+    /// into the Uninstaller review - the AppCleaner workflow.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        let apps = urls.filter { $0.pathExtension == "app" }
+        guard let first = apps.first else { return }
+        MainActor.assumeIsolated {
+            guard let state = AppState.shared else { return }
+            state.selection = .uninstaller
+            NotificationCenter.default.post(name: .brewerOpenMainWindow, object: nil)
+            Task { await state.uninstaller.beginReview(appURL: first) }
+        }
+    }
+
+    // Flush pending metadata and don't leave orphaned brew processes running
+    // (they hold Homebrew's lock).
     func applicationWillTerminate(_ notification: Notification) {
         MainActor.assumeIsolated {
-            AppState.shared?.console.terminateCurrent()
+            AppState.shared?.prepareForTermination()
         }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
-            sender.windows.first?.makeKeyAndOrderFront(nil)
+            // Pick the main window, not the menu bar extra's or the Settings panel.
+            let main = sender.windows.first { $0.identifier?.rawValue.hasPrefix("main") == true }
+                ?? sender.windows.first { $0.canBecomeMain }
+            main?.makeKeyAndOrderFront(nil)
         }
         return true
     }
@@ -90,12 +110,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     ) {
         completionHandler([.banner, .sound])
     }
+
+    // Clicking a notification opens the page it is about.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let raw = response.notification.request.content.userInfo[NotificationManager.pageKey] as? String
+        let page = raw.flatMap(NotificationManager.Page.init(rawValue:))
+        MainActor.assumeIsolated {
+            if let item = page?.sidebarItem {
+                AppState.shared?.selection = item
+            } else if page == .console {
+                AppState.shared?.console.isPresented = true
+            }
+            NotificationCenter.default.post(name: .brewerOpenMainWindow, object: nil)
+        }
+        completionHandler()
+    }
 }
 
 // MARK: - Menu bar
 
 private struct MenuBarLabel: View {
     @Environment(AppState.self) private var app
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         // Keep the structure constant (always Image + Text). NOTE: never pass
@@ -105,6 +145,12 @@ private struct MenuBarLabel: View {
         let count = app.visibleUpdateCount
         Image(systemName: count > 0 ? "mug.fill" : "mug")
         Text(verbatim: count > 0 ? String(count) : "")
+            // The label is the one view that always exists, so it services
+            // "open the main window" requests from AppKit callbacks.
+            .onReceive(NotificationCenter.default.publisher(for: .brewerOpenMainWindow)) { _ in
+                openWindow(id: "main")
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            }
     }
 }
 
@@ -130,7 +176,7 @@ private struct MenuBarContent: View {
             }
             Divider()
             Button("Upgrade All") {
-                Task { await app.packages.upgradeAll() }
+                Task { await app.upgradeAllVisible() }
             }
         }
 

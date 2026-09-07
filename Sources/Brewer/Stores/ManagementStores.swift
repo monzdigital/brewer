@@ -67,10 +67,14 @@ final class TapsStore {
     var taps: [TapItem] = []
     var infoCache: [String: TapInfoJSON] = [:]
     var isLoading = false
+    /// Homebrew 6 refuses to load third-party taps until they are trusted.
+    var supportsTrust = false
+    var trustedTaps: Set<String> = []
 
     private let client = BrewClient()
     private unowned let console: TaskConsole
     private var loadingInfo: Set<String> = []
+    private var trustSupportChecked = false
 
     init(console: TaskConsole) {
         self.console = console
@@ -81,6 +85,27 @@ final class TapsStore {
         defer { isLoading = false }
         let names = await client.tapNames()
         taps = names.map { TapItem(name: $0) }
+        if !trustSupportChecked {
+            supportsTrust = await client.supportsTapTrust()
+            trustSupportChecked = true
+        }
+        trustedTaps = BrewClient.trustedTapNames()
+    }
+
+    func isTrusted(_ name: String) -> Bool {
+        guard supportsTrust else { return true }
+        if TapItem(name: name).isOfficial { return true }
+        return trustedTaps.contains(name.lowercased())
+    }
+
+    func trust(_ name: String) async {
+        await console.runBrew(
+            title: "Trust tap \(name)",
+            arguments: ["trust", "--tap", name],
+            presentConsole: false,
+            subjects: ["tap:\(name)"]
+        )
+        trustedTaps = BrewClient.trustedTapNames()
     }
 
     func loadInfoIfNeeded(for name: String) {
@@ -95,10 +120,15 @@ final class TapsStore {
         }
     }
 
-    func addTap(_ name: String) async -> Bool {
+    /// Adds a tap; with `trust` it is also marked trusted, which is what the
+    /// interactive `brew tap` prompt would have asked in a terminal.
+    func addTap(_ name: String, trust: Bool = true) async -> Bool {
         let cleaned = name.trimmingCharacters(in: .whitespaces)
         guard cleaned.split(separator: "/").count == 2 else { return false }
         let ok = await console.runBrew(title: "Add tap \(cleaned)", arguments: ["tap", cleaned])
+        if ok && trust && supportsTrust {
+            await self.trust(cleaned)
+        }
         await refresh()
         return ok
     }

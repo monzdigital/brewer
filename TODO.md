@@ -70,6 +70,52 @@ Hedef: önek olmadan `brew install --cask brewer` çalışsın. Kabul şartları
 
 ### Sonraki geliştirmeler
 - [ ] Sparkle framework'ü gömerek Brewer'ın kendi kendini güncellemesi
-- [ ] Homebrew cask tanımı (`brewer.rb`) hazırlanması
+- [x] Homebrew cask tanımı (`brewer.rb`) hazırlanması (kendi tap'te yayında)
 - [ ] Menü çubuğu simgesini gizleme tercihi (SwiftUI `MenuBarExtra(isInserted:)`
       macOS 26'da %100 CPU hatası tetiklediği için NSStatusItem ile yeniden yazılmalı)
+- [x] Dock simgesini gizleme / yalnızca menü çubuğu modu + login'de başlatma (1.1)
+
+## Kod incelemesi ve must-have analizi (2026-09-07)
+
+Tüm kaynak (9.3k satır) satır satır incelendi; 18 hata düzeltildi, 14 geliştirme
+eklendi (`fix/bugfixes-and-improvements` dalı, öz-test 25 → 32). Ayrıntılı rapor:
+oturumdaki "Brewer Must-Have Analizi" artifact'ı. Kademeli özet:
+
+### T0 - Yayın engelleri
+- [ ] Notarizasyon (Developer ID) - hesap adımları yukarıda
+- [ ] Sparkle ile kendini güncelleme (SPM bağımlılığı + GitHub Pages appcast + `generate_appcast` release.sh'ta)
+- [ ] GitHub Actions CI (macOS runner: build + `--selftest`, tag'de evrensel zip)
+- [ ] XCTest hedefi (parser'lar, sürüm karşılaştırma, kalıntı eşleşmesi brew'suz test edilsin)
+- [ ] Resmi homebrew/cask başvurusu (bilinirlik eşiği sağlanınca)
+
+### T1 - Rakip paritesi için şart
+- [ ] Homebrew cask kataloğunu manuel uygulamalar için güncelleme kaynağı yapmak
+      (Adopt eşleşmesi + cask sürümü vs CFBundleShortVersionString → "Homebrew'a taşı ve güncelle"; Latest 0.9+ modeli)
+- [ ] Yerelleştirme (TR öncelikli; SwiftPM `defaultLocalization` + xcstrings)
+- [ ] Servisler: log görüntüleme, `brew services run`, root servisleri (askpass)
+- [ ] Açıklamaya göre arama (`brew search --desc`) + sonuçlarda durum rozetleri
+- [ ] Kalıntı tarayıcı: plist içeriği (LaunchAgents/Daemons), pkg makbuzları, sahipsiz kalıntılar
+- [ ] Geliştirici önbellekleri temizliği (DerivedData, npm/pip/cargo/gradle/CocoaPods, Docker)
+- [ ] Login'de gizli başlangıç (menü çubuğu modunda pencere açmadan)
+- [ ] Kurulum seçenekleri (`--HEAD`, `--build-from-source`, `--no-quarantine`, `--appdir`)
+- [ ] Konsol: çıktı arama, komut paleti, Terminal'de aç
+- [ ] Onboarding (Homebrew yoksa kurulum komutu, ilk çalıştırma turu)
+- [ ] Menü çubuğunda Sparkle + App Store güncellemeleri, "Snooze all"
+- [ ] Klavye kısayolları (⌘1-9, ⌘F, Esc) ve VoiceOver etiketleri
+
+### T2 - Fark yaratanlar
+- [ ] Discover "Trending" (formulae.brew.sh analytics API)
+- [ ] Shortcuts / App Intents
+- [ ] Brewfile diff, `bundle cleanup`, iCloud/Git senkron
+- [ ] Anında açılış (son snapshot önbelleği)
+- [ ] History'de çıktı saklama + tekrar çalıştır
+- [ ] Boyut/bağımlılık görselleştirme, "en büyük paketler"
+- [ ] Yükseltme sonrası cleanup/autoremove politikası
+- [ ] Widget (Xcode uzantı hedefi gerektirir)
+
+### T3 - Kalite ve altyapı
+- [ ] Swift 6 strict concurrency uyarıları (TaskConsole captured self, DownloadDelegate)
+- [ ] os.Logger + "Sorun bildir" akışı
+- [ ] `CGWindowListCreateImage` → ScreenCaptureKit (tour-shots)
+- [ ] Erişilebilirlik denetimi
+- [ ] Notarizasyon sonrası Hardened Runtime regresyon testi

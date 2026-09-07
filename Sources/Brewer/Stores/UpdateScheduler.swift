@@ -13,9 +13,14 @@ final class UpdateScheduler {
     /// Extra work to run after each scheduled check (e.g. rescanning Sparkle feeds).
     var onScheduledCheck: (() async -> Void)?
 
+    /// The outdated packages the user actually wants to hear about (snoozed ones
+    /// excluded). Falls back to everything outdated when not wired up.
+    var visibleUpdates: (() -> [BrewPackage])?
+
     private unowned let packages: PackageStore
     private var loopTask: Task<Void, Never>?
     private var previousOutdatedCount: Int?
+    private var loopStartedAt: Date?
 
     init(packages: PackageStore) {
         self.packages = packages
@@ -27,12 +32,13 @@ final class UpdateScheduler {
 
     var nextCheck: Date? {
         guard intervalHours > 0 else { return nil }
-        let reference = lastCheck ?? Date()
+        let reference = lastCheck ?? loopStartedAt ?? Date()
         return reference.addingTimeInterval(Double(intervalHours) * 3600)
     }
 
     func start() {
         stop()
+        loopStartedAt = Date()
         loopTask = Task { [weak self] in
             while !Task.isCancelled {
                 // Wake up every 10 minutes and see whether a check is due.
@@ -40,13 +46,10 @@ final class UpdateScheduler {
                 guard let self else { return }
                 let hours = self.intervalHours
                 guard hours > 0 else { continue }
-                let due: Bool
-                if let last = self.lastCheck {
-                    due = Date().timeIntervalSince(last) >= Double(hours) * 3600
-                } else {
-                    due = true
-                }
-                if due {
+                // With "check on launch" off, the launch itself is the reference
+                // point - otherwise the first wake-up would always be "due".
+                let reference = self.lastCheck ?? self.loopStartedAt ?? Date()
+                if Date().timeIntervalSince(reference) >= Double(hours) * 3600 {
                     await self.check(scheduled: true)
                 }
             }
@@ -64,20 +67,23 @@ final class UpdateScheduler {
         isChecking = true
         defer { isChecking = false }
 
-        // Even if update fails (offline), still refresh from local data afterwards.
-        _ = await Shell.runBrew(["update"])
-        await packages.refresh()
+        // Goes through the console queue so it can never race a running brew
+        // command for Homebrew's lock; the panel stays closed for background
+        // checks. Even if update fails (offline) the refresh still runs.
+        await packages.updateHomebrewData(presentConsole: false)
         lastCheck = Date()
 
         let defaults = UserDefaults.standard
-        let count = packages.outdatedCount
+        let updates = visibleUpdates?() ?? packages.outdatedPackages
+        let count = updates.count
 
         if defaults.bool(forKey: Prefs.notifyOnUpdates), count > 0, count != previousOutdatedCount {
             NotificationManager.post(
                 title: "Updates available",
                 body: count == 1
                     ? "1 package can be upgraded."
-                    : "\(count) packages can be upgraded."
+                    : "\(count) packages can be upgraded.",
+                page: .updates
             )
         }
         previousOutdatedCount = count
@@ -91,11 +97,13 @@ final class UpdateScheduler {
                 let onAC = await PowerInfo.isOnACPower()
                 guard onAC, !PowerInfo.isLowPowerMode else { return }
             }
-            await packages.upgradeAll()
+            let snoozed = Set(packages.outdatedPackages.map(\.id)).subtracting(updates.map(\.id))
+            await packages.upgradeAll(excluding: snoozed)
             if defaults.bool(forKey: Prefs.notifyOnUpdates) {
                 NotificationManager.post(
                     title: "Upgrade finished",
-                    body: "Brewer upgraded \(count) package\(count == 1 ? "" : "s") in the background."
+                    body: "Brewer upgraded \(count) package\(count == 1 ? "" : "s") in the background.",
+                    page: .console
                 )
             }
         }

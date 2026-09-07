@@ -141,6 +141,7 @@ final class DuplicatesStore {
     }
 
     func refresh(casks: [BrewPackage], masApps: [MasApp]) async {
+        guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
 

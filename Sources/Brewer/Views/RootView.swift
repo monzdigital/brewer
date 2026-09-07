@@ -143,7 +143,7 @@ struct SidebarView: View {
                 Label("Pinned", systemImage: "pin")
                     .tag(SidebarItem.pinned)
                 Label("Snoozed", systemImage: "moon.zzz")
-                    .badge(app.meta.snoozedIDs.count)
+                    .badge(app.snoozedUpdateCount)
                     .tag(SidebarItem.snoozed)
             }
 

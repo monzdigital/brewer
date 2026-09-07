@@ -126,9 +126,72 @@ enum SelfTestRunner {
               && LeftoverScanner.match(itemName: "MyApp Extras", bundleID: nil, appName: "MyApp", allowNameMatch: true) == nil)
         check("leftover: short names are ignored",
               LeftoverScanner.match(itemName: "Arc", bundleID: nil, appName: "Arc", allowNameMatch: true) == nil)
+        check("leftover: sibling bundle ids never match",
+              LeftoverScanner.match(itemName: "com.foo.barbaz.plist", bundleID: "com.foo.bar", appName: "Bar", allowNameMatch: false) == nil
+              && LeftoverScanner.match(itemName: "ABCDE12345.com.foo.bar", bundleID: "com.foo.bar", appName: "Bar", allowNameMatch: false) == .bundleID)
 
         // 14. Installer helpers
         check("installer: sanitizes names", AppUpdateInstaller.sanitized("A/B:C") == "A-B-C")
+        check("installer: backups prune by timestamp, not version text",
+              AppUpdateInstaller.sortedNewestFirst(["1.9_20260801-120000", "1.10_20260901-090000", "2.0_20260701-000000"])
+              == ["1.10_20260901-090000", "1.9_20260801-120000", "2.0_20260701-000000"])
+        check("installer: rejects a malformed EdDSA signature",
+              SparkleSignature.verify(fileAt: URL(fileURLWithPath: "/bin/ls"), signatureBase64: "AAAA", publicKeyBase64: "BBBB") != .notApplicable
+              && SparkleSignature.verify(fileAt: URL(fileURLWithPath: "/bin/ls"), signatureBase64: nil, publicKeyBase64: "BBBB") == .notApplicable)
+
+        // 16. Sparkle comparison follows build numbers when both sides have them
+        check("sparkle: build number decides",
+              SparkleUpdate.isUpdate(currentVersion: "2.0", latestVersion: "2.0", currentBuild: "200", latestBuild: "201")
+              && !SparkleUpdate.isUpdate(currentVersion: "1.9", latestVersion: "2.0", currentBuild: "300", latestBuild: "200")
+              && SparkleUpdate.isUpdate(currentVersion: "1.9", latestVersion: "2.0", currentBuild: nil, latestBuild: "200"))
+        let appcast = """
+        <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel>
+        <item><sparkle:version>300</sparkle:version><sparkle:shortVersionString>3.0</sparkle:shortVersionString>
+          <sparkle:minimumSystemVersion>99.0</sparkle:minimumSystemVersion>
+          <enclosure url="https://example.com/3.zip" sparkle:edSignature="sig3" length="10"/></item>
+        <item><sparkle:version>250</sparkle:version><sparkle:shortVersionString>2.5</sparkle:shortVersionString>
+          <enclosure url="https://example.com/2.zip" sparkle:os="windows"/></item>
+        <item><sparkle:version>240</sparkle:version><sparkle:shortVersionString>2.4</sparkle:shortVersionString>
+          <enclosure url="https://example.com/24.zip" sparkle:edSignature="sig24"/></item>
+        <item><sparkle:version>230</sparkle:version><sparkle:channel>beta</sparkle:channel>
+          <enclosure url="https://example.com/23.zip"/></item>
+        </channel></rss>
+        """
+        let parsedAppcast = AppcastParser().parse(data: Data(appcast.utf8))
+        check("sparkle: appcast skips beta, Windows and too-new-macOS items",
+              parsedAppcast?.version == "2.4" && parsedAppcast?.buildVersion == "240" && parsedAppcast?.edSignature == "sig24",
+              detail: parsedAppcast.map { "\($0.version) build \($0.buildVersion ?? "-")" } ?? "nil")
+
+        // 17. brew outdated JSON (greedy cask merge)
+        let outdatedJSON = """
+        {"formulae":[],"casks":[{"name":"stats","installed_versions":["2.8.24"],"current_version":"3.0.15","pinned":false,"pinned_version":null}]}
+        """
+        var mergeCasks = [BrewPackage(kind: .cask, name: "stats", displayName: "Stats")]
+        mergeCasks[0].installedVersion = "2.8.24"
+        if let decoded = try? JSONDecoder().decode(OutdatedResponse.self, from: Data(outdatedJSON.utf8)) {
+            PackageStore.mergeGreedyOutdated(decoded.casks ?? [], into: &mergeCasks)
+        }
+        check("greedy outdated merge marks the cask",
+              mergeCasks[0].isOutdated && mergeCasks[0].latestVersion == "3.0.15")
+
+        // 18. Snooze pruning (pure rule - the main thread is blocked here, so no MainActor hops)
+        var stats = BrewPackage(kind: .cask, name: "stats", displayName: "Stats")
+        stats.installedVersion = "3.0.15"
+        var old = BrewPackage(kind: .cask, name: "old", displayName: "Old")
+        old.installedVersion = "1.0"
+        old.latestVersion = "1.1"
+        old.isOutdated = true
+        var kept = BrewPackage(kind: .formula, name: "kept", displayName: "kept")
+        kept.installedVersion = "1.0"
+        kept.latestVersion = "1.1"
+        kept.isOutdated = true
+        let stale = MetaStore.staleSnoozeIDs([
+            "cask:stats": SnoozeInfo(until: nil, version: "3.0.15"),                       // already installed
+            "cask:old": SnoozeInfo(until: Date(timeIntervalSinceNow: -60), version: nil),   // timer expired
+            "formula:kept": SnoozeInfo(until: Date(timeIntervalSinceNow: 3600), version: nil) // still active
+        ], packages: [stats, old, kept]).sorted()
+        check("snooze pruning drops installed and expired snoozes only",
+              stale == ["cask:old", "cask:stats"], detail: stale.joined(separator: ", "))
 
         // 15. sudo askpass helper
         let askpass = AskPass.ensureInstalled()

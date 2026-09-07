@@ -2,6 +2,12 @@ import Foundation
 import AppKit
 import Observation
 
+/// Collects the apps a queue preflight closed so they can be reopened afterwards.
+actor ClosedApps {
+    private(set) var paths: [String] = []
+    func record(_ closed: [String]) { paths.append(contentsOf: closed) }
+}
+
 /// Source of truth for installed formulae and casks, plus all package actions.
 @MainActor
 @Observable
@@ -15,9 +21,14 @@ final class PackageStore {
     var sizeCache: [String: Int64] = [:]
     var brewVersion: String?
 
+    /// Runs after every completed refresh (AppState prunes stale snoozes here).
+    var onRefreshed: (() -> Void)?
+
     let client = BrewClient()
     private unowned let console: TaskConsole
     private var sizeTasks: Set<String> = []
+    private var refreshTask: Task<Void, Never>?
+    private var refreshAgain = false
 
     init(console: TaskConsole) {
         self.console = console
@@ -47,20 +58,44 @@ final class PackageStore {
 
     // MARK: Refresh
 
+    /// Refreshes from `brew info --installed`. Calls that arrive while a refresh
+    /// is already running wait for it AND trigger one more pass, so a refresh
+    /// requested after an install never returns data captured before it.
     func refresh() async {
-        guard !isLoading else { return }
+        if let task = refreshTask {
+            refreshAgain = true
+            await task.value
+            return
+        }
+        let task = Task { @MainActor [self] in
+            repeat {
+                self.refreshAgain = false
+                await self.performRefresh()
+            } while self.refreshAgain
+            self.refreshTask = nil
+        }
+        refreshTask = task
+        await task.value
+    }
+
+    private func performRefresh() async {
         isLoading = true
         loadError = nil
         defer { isLoading = false }
 
         do {
             let snapshot = try await client.installedSnapshot()
-            formulae = snapshot.formulae
+            let newFormulae = snapshot.formulae
                 .compactMap { Self.package(from: $0) }
                 .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
-            casks = snapshot.casks
+            var newCasks = snapshot.casks
                 .map { Self.package(from: $0) }
                 .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+            if UserDefaults.standard.bool(forKey: Prefs.greedyCasks) {
+                Self.mergeGreedyOutdated(await client.outdatedCasksGreedy(), into: &newCasks)
+            }
+            formulae = newFormulae
+            casks = newCasks
             lastRefreshed = Date()
         } catch {
             loadError = error.localizedDescription
@@ -68,6 +103,20 @@ final class PackageStore {
 
         if brewVersion == nil {
             brewVersion = await client.brewVersion()
+        }
+        onRefreshed?()
+    }
+
+    /// `brew info` reports self-updating casks as current even when Homebrew's
+    /// version moved on; with the greedy preference the Updates list must match
+    /// what "Upgrade All" will actually upgrade.
+    nonisolated static func mergeGreedyOutdated(_ entries: [OutdatedEntryJSON], into casks: inout [BrewPackage]) {
+        for entry in entries {
+            guard let index = casks.firstIndex(where: { $0.name == entry.name }) else { continue }
+            casks[index].isOutdated = true
+            if let current = entry.current_version, !current.isEmpty {
+                casks[index].latestVersion = current
+            }
         }
     }
 
@@ -94,6 +143,9 @@ final class PackageStore {
         package.caveats = json.caveats
         package.dependencies = json.dependencies ?? []
         package.buildDependencies = json.build_dependencies ?? []
+        package.isKegOnly = json.keg_only ?? false
+        package.kegOnlyReason = json.keg_only_reason?.displayText
+        package.isLinked = json.linked_keg != nil
         return package
     }
 
@@ -126,7 +178,7 @@ final class PackageStore {
         let fileManager = FileManager.default
         let appNames = json.appNames
         for appName in appNames {
-            for base in ["/Applications", NSHomeDirectory() + "/Applications"] {
+            for base in AppScanner.applicationRoots {
                 let candidate = base + "/" + appName
                 if fileManager.fileExists(atPath: candidate) { return candidate }
             }
@@ -197,6 +249,22 @@ final class PackageStore {
         await install(name: package.name, kind: package.kind)
     }
 
+    func reinstall(_ package: BrewPackage) async {
+        var args = ["reinstall"]
+        if package.kind == .cask { args.append("--cask") }
+        args.append(package.name)
+        let appPaths = Self.appPathsForClosing(package.kind == .cask ? [package] : [])
+        let closed = ClosedApps()
+        await console.runBrew(
+            title: "Reinstall \(package.name)",
+            arguments: args,
+            subjects: [package.id],
+            preflight: { await closed.record(Self.closeRunningApps(atPaths: appPaths)) }
+        )
+        await Self.relaunchIfWanted(closed)
+        await refresh()
+    }
+
     func uninstall(_ packages: [BrewPackage], zap: Bool = false) async {
         let formulae = packages.filter { $0.kind == .formula }
         let casks = packages.filter { $0.kind == .cask }
@@ -236,27 +304,41 @@ final class PackageStore {
         }
         if !caskPackages.isEmpty {
             let names = caskPackages.map(\.name)
+            let closed = ClosedApps()
             await console.runBrew(
                 title: "Upgrade \(names.count == 1 ? names[0] : "\(names.count) casks")",
                 arguments: ["upgrade", "--cask"] + names,
                 subjects: caskPackages.map(\.id),
-                preflight: { await Self.closeRunningApps(atPaths: appPaths) }
+                preflight: { await closed.record(Self.closeRunningApps(atPaths: appPaths)) }
             )
+            await Self.relaunchIfWanted(closed)
         }
         await refresh()
     }
 
-    func upgradeAll() async {
+    /// Upgrades everything outdated. Snoozed packages are passed in as
+    /// exclusions: brew has no notion of a snooze, so when any exist the upgrade
+    /// runs with an explicit package list instead of a bare `brew upgrade`.
+    func upgradeAll(excluding excludedIDs: Set<String> = []) async {
         let outdated = outdatedPackages
-        let appPaths = Self.appPathsForClosing(outdated.filter { $0.kind == .cask })
+        let targets = outdated.filter { !excludedIDs.contains($0.id) }
+        guard !targets.isEmpty else { return }
+        if targets.count < outdated.count {
+            await upgrade(targets)
+            return
+        }
+
+        let appPaths = Self.appPathsForClosing(targets.filter { $0.kind == .cask })
         var args = ["upgrade"]
-        if UserDefaults.standard.bool(forKey: Prefs.greedyCasks) { args.append("--greedy") }
+        if UserDefaults.standard.bool(forKey: Prefs.greedyCasks) { args.append("--greedy-auto-updates") }
+        let closed = ClosedApps()
         await console.runBrew(
             title: "Upgrade all packages",
             arguments: args,
-            subjects: outdated.map(\.id),
-            preflight: { await Self.closeRunningApps(atPaths: appPaths) }
+            subjects: targets.map(\.id),
+            preflight: { await closed.record(Self.closeRunningApps(atPaths: appPaths)) }
         )
+        await Self.relaunchIfWanted(closed)
         await refresh()
     }
 
@@ -266,6 +348,16 @@ final class PackageStore {
             title: pinned ? "Pin \(package.name)" : "Unpin \(package.name)",
             arguments: [pinned ? "pin" : "unpin", package.name],
             presentConsole: false,
+            subjects: [package.id]
+        )
+        await refresh()
+    }
+
+    func setLinked(_ package: BrewPackage, linked: Bool) async {
+        guard package.kind == .formula else { return }
+        await console.runBrew(
+            title: linked ? "Link \(package.name)" : "Unlink \(package.name)",
+            arguments: [linked ? "link" : "unlink", package.name],
             subjects: [package.id]
         )
         await refresh()
@@ -284,16 +376,16 @@ final class PackageStore {
     }
 
     /// Runs as a queue preflight: closes apps just before their upgrade executes,
-    /// not while the operation is still waiting in line.
-    nonisolated static func closeRunningApps(atPaths appPaths: Set<String>) async {
-        guard !appPaths.isEmpty else { return }
+    /// not while the operation is still waiting in line. Returns what it closed.
+    nonisolated static func closeRunningApps(atPaths appPaths: Set<String>) async -> [String] {
+        guard !appPaths.isEmpty else { return [] }
         let running = await MainActor.run {
             NSWorkspace.shared.runningApplications.filter { app in
                 guard let path = app.bundleURL?.path else { return false }
                 return appPaths.contains(path)
             }
         }
-        guard !running.isEmpty else { return }
+        guard !running.isEmpty else { return [] }
 
         for app in running {
             _ = app.terminate()
@@ -302,6 +394,23 @@ final class PackageStore {
         for _ in 0..<16 {
             if running.allSatisfy({ $0.isTerminated }) { break }
             try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        return running.compactMap { $0.bundleURL?.path }
+    }
+
+    /// Reopens the apps a preflight closed (in the background, without stealing
+    /// focus) once their upgrade has run - whether or not brew succeeded, the
+    /// user had those apps open.
+    nonisolated static func relaunchIfWanted(_ closed: ClosedApps) async {
+        guard UserDefaults.standard.bool(forKey: Prefs.relaunchAppsAfterUpgrade) else { return }
+        let paths = await closed.paths
+        guard !paths.isEmpty else { return }
+        await MainActor.run {
+            for path in paths where FileManager.default.fileExists(atPath: path) {
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = false
+                NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: path), configuration: configuration)
+            }
         }
     }
 }

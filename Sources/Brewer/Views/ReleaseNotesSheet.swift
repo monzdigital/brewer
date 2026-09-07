@@ -18,9 +18,9 @@ struct ReleaseNotesSheet: View {
                     Text("\(update.appName) - what's new")
                         .font(.headline)
                     HStack(spacing: 4) {
-                        Text(update.currentVersion).foregroundStyle(.secondary)
+                        Text(update.currentVersionDisplay).foregroundStyle(.secondary)
                         Image(systemName: "arrow.right").font(.caption2).foregroundStyle(.tertiary)
-                        Text(update.latestVersion).fontWeight(.semibold).foregroundStyle(.blue)
+                        Text(update.latestVersionDisplay).fontWeight(.semibold).foregroundStyle(.blue)
                         if let bytes = update.enclosureBytes {
                             Text("· \(Format.bytes(bytes)) download")
                                 .foregroundStyle(.tertiary)

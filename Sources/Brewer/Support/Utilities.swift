@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import CryptoKit
 import UserNotifications
 
 // MARK: - Preferences
@@ -20,6 +21,8 @@ enum Prefs {
     static let smartDelete = "pref.smartDelete"
     static let backupBeforeUpdate = "pref.backupBeforeUpdate"
     static let keepBackupsPerApp = "pref.keepBackupsPerApp"
+    static let relaunchAppsAfterUpgrade = "pref.relaunchAppsAfterUpgrade"
+    static let hideDockIcon = "pref.hideDockIcon"
 
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
@@ -37,8 +40,38 @@ enum Prefs {
             notifyOnOperations: true,
             smartDelete: false,
             backupBeforeUpdate: true,
-            keepBackupsPerApp: 2
+            keepBackupsPerApp: 2,
+            relaunchAppsAfterUpgrade: true,
+            hideDockIcon: false
         ])
+    }
+}
+
+// MARK: - Dock presence (menu bar only mode)
+
+@MainActor
+enum DockIcon {
+    static func apply(hidden: Bool) {
+        let policy: NSApplication.ActivationPolicy = hidden ? .accessory : .regular
+        guard NSApp.activationPolicy() != policy else { return }
+        NSApp.setActivationPolicy(policy)
+        if !hidden { NSApp.activate(ignoringOtherApps: true) }
+    }
+}
+
+// MARK: - Cross-scene requests
+
+extension Notification.Name {
+    /// Asks whichever scene is alive (the menu bar label always is) to open the
+    /// main window - AppKit callbacks can't reach SwiftUI's openWindow directly.
+    static let brewerOpenMainWindow = Notification.Name("brewer.openMainWindow")
+}
+
+// MARK: - App info
+
+enum AppInfo {
+    static var version: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 }
 
@@ -172,6 +205,52 @@ enum Quarantine {
     }
 }
 
+// MARK: - Code signing
+
+/// Wraps `codesign` so a downloaded update can be checked the way Sparkle does:
+/// the new bundle must verify, and it must come from the same Team ID as the
+/// version it replaces.
+enum CodeSigning {
+    static func teamIdentifier(ofApp path: String) async -> String? {
+        let result = await Shell.run("/usr/bin/codesign", ["-dv", "--verbose=2", path])
+        for rawLine in result.combined.split(separator: "\n") {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard line.hasPrefix("TeamIdentifier=") else { continue }
+            let value = line.dropFirst("TeamIdentifier=".count).trimmingCharacters(in: .whitespaces)
+            return value == "not set" || value.isEmpty ? nil : value
+        }
+        return nil
+    }
+
+    static func verify(appAt path: String) async -> (ok: Bool, detail: String) {
+        let result = await Shell.run("/usr/bin/codesign", ["--verify", "--deep", "--strict", path])
+        return (result.succeeded, result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+}
+
+// MARK: - Sparkle EdDSA signatures
+
+enum SparkleSignature {
+    enum Outcome: Equatable { case valid, invalid(String), notApplicable }
+
+    /// Verifies a Sparkle `sparkle:edSignature` (Ed25519 over the whole archive)
+    /// against the app's `SUPublicEDKey`. Both are base64.
+    static func verify(fileAt url: URL, signatureBase64: String?, publicKeyBase64: String?) -> Outcome {
+        guard let signatureBase64, let publicKeyBase64,
+              !signatureBase64.isEmpty, !publicKeyBase64.isEmpty else { return .notApplicable }
+        guard let signature = Data(base64Encoded: signatureBase64), signature.count == 64,
+              let keyData = Data(base64Encoded: publicKeyBase64), keyData.count == 32,
+              let publicKey = try? Curve25519.Signing.PublicKey(rawRepresentation: keyData)
+        else { return .invalid("The update's signature or the app's public key is malformed.") }
+        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else {
+            return .invalid("The downloaded file could not be read for verification.")
+        }
+        return publicKey.isValidSignature(signature, for: data)
+            ? .valid
+            : .invalid("EdDSA signature mismatch - the download may be corrupted or tampered with.")
+    }
+}
+
 // MARK: - Mach-O architecture inspection
 
 enum MachOInspector {
@@ -290,12 +369,30 @@ enum NotificationManager {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { _, _ in }
     }
 
-    static func post(title: String, body: String) {
+    /// Which sidebar page a notification click should open.
+    enum Page: String {
+        case updates, appUpdates, uninstaller, appStore, console
+
+        var sidebarItem: SidebarItem? {
+            switch self {
+            case .updates: return .updates
+            case .appUpdates: return .appUpdates
+            case .uninstaller: return .uninstaller
+            case .appStore: return .appStore
+            case .console: return nil
+            }
+        }
+    }
+
+    static let pageKey = "brewer.page"
+
+    static func post(title: String, body: String, page: Page? = nil) {
         guard isAvailable else { return }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
+        if let page { content.userInfo = [pageKey: page.rawValue] }
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
     }
@@ -307,7 +404,7 @@ enum HTTP {
     static func fetchData(_ url: URL, timeout: TimeInterval = 15) async throws -> Data {
         var request = URLRequest(url: url)
         request.timeoutInterval = timeout
-        request.setValue("Brewer/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("Brewer/\(AppInfo.version)", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw URLError(.badServerResponse)

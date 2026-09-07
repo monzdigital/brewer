@@ -60,6 +60,15 @@ struct BrewClient: Sendable {
         }
     }
 
+    /// Casks that are outdated once self-updating apps are included
+    /// (`--greedy-auto-updates`). Empty when the command fails.
+    func outdatedCasksGreedy() async -> [OutdatedEntryJSON] {
+        let result = await Shell.runBrew(["outdated", "--cask", "--greedy-auto-updates", "--json=v2"])
+        guard result.succeeded, let data = result.stdout.data(using: .utf8),
+              let response = try? JSONDecoder().decode(OutdatedResponse.self, from: data) else { return [] }
+        return response.casks ?? []
+    }
+
     // MARK: Search
 
     func search(query: String) async -> (formulae: [String], casks: [String]) {
@@ -103,6 +112,30 @@ struct BrewClient: Sendable {
         let result = await Shell.runBrew(["tap-info", "--json", name])
         guard result.succeeded, let data = result.stdout.data(using: .utf8) else { return nil }
         return (try? JSONDecoder().decode([TapInfoJSON].self, from: data))?.first
+    }
+
+    /// Homebrew 6 only loads formulae/casks from third-party taps the user has
+    /// explicitly trusted (`brew trust --tap`).
+    func supportsTapTrust() async -> Bool {
+        guard let version = await brewVersion() else { return false }
+        return Self.majorVersion(ofBrewVersionLine: version) >= 6
+    }
+
+    nonisolated static func majorVersion(ofBrewVersionLine line: String) -> Int {
+        // "Homebrew 6.0.1" or "Homebrew 6.0.1-12-gabcdef"
+        let token = line.split(separator: " ").last.map(String.init) ?? ""
+        return Int(token.split(whereSeparator: { $0 == "." || $0 == "-" }).first ?? "") ?? 0
+    }
+
+    /// Taps listed in Homebrew's trust store (~/.homebrew/trust.json, or
+    /// $XDG_CONFIG_HOME/homebrew/trust.json).
+    nonisolated static func trustedTapNames() -> Set<String> {
+        let environment = ProcessInfo.processInfo.environment
+        let directory = environment["XDG_CONFIG_HOME"].map { $0 + "/homebrew" } ?? (NSHomeDirectory() + "/.homebrew")
+        guard let data = FileManager.default.contents(atPath: directory + "/trust.json"),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let taps = json["trustedtaps"] as? [String] else { return [] }
+        return Set(taps.map { $0.lowercased() })
     }
 
     // MARK: Maintenance

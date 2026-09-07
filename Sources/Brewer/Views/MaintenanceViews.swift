@@ -105,12 +105,12 @@ struct HealthView: View {
                     .font(.headline)
                 HStack(spacing: 10) {
                     Button {
-                        Task { await app.packages.upgradeAll() }
+                        Task { await app.upgradeAllVisible() }
                     } label: {
                         Label("Update All", systemImage: "arrow.down.circle")
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(app.packages.outdatedCount == 0)
+                    .disabled(app.visibleUpdateCount == 0)
 
                     Button {
                         Task { await app.health.clearCache(scrub: false) }

@@ -22,10 +22,11 @@ final class AppUpdatesStore {
         isScanning = true
         defer { isScanning = false }
 
+        // Two casks can resolve to the same .app (renamed tokens such as
+        // docker -> docker-desktop), so never assume unique keys here.
         let caskByAppPath: [String: String] = Dictionary(
-            uniqueKeysWithValues: casks.compactMap { cask in
-                cask.appPath.map { ($0, cask.name) }
-            }
+            casks.compactMap { cask in cask.appPath.map { ($0, cask.name) } },
+            uniquingKeysWith: { first, _ in first }
         )
 
         let apps = await Task.detached(priority: .utility) {
@@ -40,23 +41,7 @@ final class AppUpdatesStore {
         for chunk in sparkleApps.chunked(into: 6) {
             await withTaskGroup(of: SparkleUpdate?.self) { group in
                 for app in chunk {
-                    group.addTask {
-                        guard let feed = app.sparkleFeedURL,
-                              let current = app.shortVersion,
-                              let latest = await AppScanner.latestAppcastVersion(feedURL: feed)
-                        else { return nil }
-                        return SparkleUpdate(
-                            appName: app.name,
-                            appPath: app.url.path,
-                            currentVersion: current,
-                            latestVersion: latest.version,
-                            downloadURL: latest.downloadURL,
-                            releaseNotesURL: latest.releaseNotesURL,
-                            notesHTML: latest.notesHTML,
-                            enclosureBytes: latest.enclosureBytes,
-                            managedByCask: nil
-                        )
-                    }
+                    group.addTask { await Self.check(app) }
                 }
                 for await update in group {
                     if let update { found.append(update) }
@@ -72,6 +57,47 @@ final class AppUpdatesStore {
             }
             .sorted { $0.appName.localizedCaseInsensitiveCompare($1.appName) == .orderedAscending }
         lastScan = Date()
+    }
+
+    nonisolated static func check(_ app: ScannedApp) async -> SparkleUpdate? {
+        guard let feed = app.sparkleFeedURL,
+              let current = app.shortVersion,
+              let latest = await AppScanner.latestAppcastVersion(feedURL: feed)
+        else { return nil }
+        return SparkleUpdate(
+            appName: app.name,
+            appPath: app.url.path,
+            currentVersion: current,
+            latestVersion: latest.version,
+            downloadURL: latest.downloadURL,
+            releaseNotesURL: latest.releaseNotesURL,
+            notesHTML: latest.notesHTML,
+            enclosureBytes: latest.enclosureBytes,
+            managedByCask: nil,
+            currentBuild: app.bundleVersion,
+            latestBuild: latest.buildVersion,
+            edSignature: latest.edSignature,
+            publicKey: app.sparklePublicKey
+        )
+    }
+
+    /// Re-reads one app after a direct update so its row reflects the new version
+    /// without a full feed rescan.
+    func refreshApp(atPath path: String) async {
+        guard let index = results.firstIndex(where: { $0.appPath == path }) else { return }
+        let managed = results[index].managedByCask
+        let url = URL(fileURLWithPath: path)
+        let updated = await Task.detached(priority: .utility) { () -> SparkleUpdate? in
+            guard let app = AppScanner.scanApp(at: url) else { return nil }
+            return await Self.check(app)
+        }.value
+        guard let currentIndex = results.firstIndex(where: { $0.appPath == path }) else { return }
+        if var updated {
+            updated.managedByCask = managed
+            results[currentIndex] = updated
+        } else {
+            results.remove(at: currentIndex)
+        }
     }
 }
 
@@ -100,13 +126,16 @@ final class AdoptStore {
         defer { isScanning = false }
 
         let managedPaths = Set(packages.casks.compactMap(\.appPath))
+        // Only top-level apps: `--adopt` looks for the bundle at the cask's own
+        // install path, so an app inside /Applications/Setapp would just get a
+        // second copy installed next to it.
         let apps = await Task.detached(priority: .utility) {
-            AppScanner.scanApplications()
+            AppScanner.scanApplications(includeSubfolders: false)
         }.value
 
         var newRows: [AdoptRow] = []
         for app in apps {
-            guard !managedPaths.contains(app.url.path) else { continue }
+            guard !managedPaths.contains(app.url.path), !app.isAppleApp else { continue }
             var row = AdoptRow(app: app)
             if app.hasMASReceipt {
                 row.state = .appStore

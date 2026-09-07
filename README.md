@@ -29,20 +29,25 @@ brew install --cask monzdigital/tap/brewer
 **Manage what you have**
 - Everything installed in one list; filter by formulae, casks, outdated, favorites, pinned
 - Multi-select to upgrade, uninstall, pin or favorite in bulk
+- Reinstall, link/unlink (keg-only and unlinked formulae are flagged), reveal apps in Finder
 - Adopt apps already in /Applications (`brew install --cask --adopt`)
 - Per-package notes, tags and collections; compact list mode
 
 **Stay up to date**
-- Scheduled update checks (6h/12h/daily/weekly) with notifications
+- Scheduled update checks (6h/12h/daily/weekly) with notifications that open the right page
 - Optional automatic background upgrades - battery-aware (AC power / Low Power Mode)
-- Menu bar icon with outdated count at a glance
-- Running apps are closed cleanly before their cask is upgraded
-- Snooze updates per package (for a duration or per version)
-- App Updates: scans Sparkle feeds of installed apps and compares versions
+- Menu bar icon with outdated count at a glance; optional menu-bar-only mode and launch at login
+- Running apps are closed cleanly before their cask is upgraded and reopened afterwards
+- Snooze updates per package (for a duration, per version, or indefinitely - the cask
+  equivalent of `brew pin`); snoozed packages are never touched by "Upgrade All"
+- Optional greedy mode lists and upgrades self-updating casks consistently (`--greedy-auto-updates`)
+- App Updates: scans Sparkle feeds of installed apps and compares versions the way
+  Sparkle does (build numbers), skipping betas and releases that need a newer macOS
 
 **Services, taps & Brewfiles**
 - Start / stop / restart `brew services` with one click
-- Add and remove taps; tap details (formula/cask counts, repo link)
+- Add and remove taps; tap details (formula/cask counts, repo link); Homebrew 6 tap
+  trust (`brew trust`) with one click
 - Export, import and check Brewfiles (`brew bundle`)
 
 **Keep Homebrew healthy**
@@ -56,13 +61,16 @@ brew install --cask monzdigital/tap/brewer
 **All apps, not just Homebrew** *(MacUpdater / Latest-style)*
 - Apps inventory: every app on the Mac with install source (Homebrew /
   App Store / Sparkle / manual), size and architecture
-- Direct Sparkle updates: download → back up the old version → extract
-  (zip/dmg/tar) → install, with release-notes preview and rollback from backups
+- Direct Sparkle updates: download → verify (EdDSA signature and code-signing
+  identity) → back up the old version → extract (zip/dmg/tar) → install, with
+  release-notes preview, automatic rollback on failure and restore from backups
+- Apps inside /Applications subfolders (Setapp, Utilities, vendor folders) are scanned too
 - Background checks notify you when app updates appear
 
 **Complete uninstaller** *(AppCleaner-style)*
-- Drag & drop any app to remove it together with its caches, preferences,
-  support files, logs and containers (everything goes to the Trash - recoverable)
+- Drag & drop any app (or drop it on the Dock icon) to remove it together with its
+  caches, preferences, support files, logs and containers (everything goes to the
+  Trash - recoverable)
 - Homebrew casks are uninstalled through brew, leftovers cleaned after
 - SmartDelete: optionally watch the Trash and offer leftover cleanup when you
   delete an app the normal way
@@ -71,7 +79,8 @@ brew install --cask monzdigital/tap/brewer
 **Extras**
 - Installation history · dependency tree visualization · Apple Silicon scan
   (finds Intel-only apps and Rosetta-installed brew) · `mas` CLI integration
-  · notifications when long operations finish · bottom-docked live console
+  · notifications when long operations finish · bottom-docked live console with
+  a cancellable queue (Homebrew runs one command at a time)
 
 ## Requirements
 

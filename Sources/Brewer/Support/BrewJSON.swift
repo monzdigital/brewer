@@ -92,6 +92,34 @@ struct FormulaJSON: Decodable {
     var dependencies: [String]?
     var build_dependencies: [String]?
     var aliases: [String]?
+    var keg_only: Bool?
+    var keg_only_reason: KegOnlyReasonJSON?
+    var linked_keg: String?
+}
+
+/// `keg_only_reason` is an object today ({"reason":…, "explanation":…}) but was a
+/// plain string in older Homebrew releases; either shape must not sink the formula.
+struct KegOnlyReasonJSON: Decodable {
+    var reason: String?
+    var explanation: String?
+
+    enum CodingKeys: String, CodingKey { case reason, explanation }
+
+    init(from decoder: Decoder) throws {
+        if let container = try? decoder.container(keyedBy: CodingKeys.self) {
+            reason = (try? container.decodeIfPresent(LenientString.self, forKey: .reason))?.value
+            explanation = (try? container.decodeIfPresent(LenientString.self, forKey: .explanation))?.value
+        } else if let single = try? decoder.singleValueContainer(), let text = try? single.decode(String.self) {
+            reason = text
+        }
+    }
+
+    var displayText: String? {
+        if let explanation, !explanation.isEmpty { return explanation }
+        guard let reason, !reason.isEmpty else { return nil }
+        // ":versioned_formula" -> "versioned formula"
+        return reason.trimmingCharacters(in: CharacterSet(charactersIn: ":")).replacingOccurrences(of: "_", with: " ")
+    }
 }
 
 struct VersionsJSON: Decodable {

@@ -283,6 +283,11 @@ struct PackageRowView: View {
                     if package.isFromThirdPartyTap {
                         TinyBadge(text: "tap", color: .purple)
                     }
+                    if package.isUnexpectedlyUnlinked {
+                        TinyBadge(text: "unlinked", color: .orange)
+                    } else if package.isKegOnly {
+                        TinyBadge(text: "keg-only", color: .gray)
+                    }
                 }
                 if !compact, let desc = package.desc {
                     Text(desc)
@@ -327,6 +332,9 @@ struct PackageContextMenu: View {
             }
         }
         if package.isInstalled {
+            Button("Reinstall") {
+                Task { await app.packages.reinstall(package) }
+            }
             Button("Uninstall") {
                 Task { await app.packages.uninstall([package]) }
             }
@@ -366,6 +374,26 @@ struct PackageContextMenu: View {
                 Button("Skip version \(package.latestVersion ?? "")") {
                     app.meta.snooze(package.id, until: nil, version: package.latestVersion)
                 }
+                Divider()
+                Button("Ignore updates until unsnoozed") {
+                    app.meta.snooze(package.id, until: nil, version: nil)
+                }
+            }
+        } else if package.kind == .cask && package.isInstalled {
+            // Casks can't be pinned by brew; an open-ended snooze is the equivalent.
+            Button("Ignore updates until unsnoozed") {
+                app.meta.snooze(package.id, until: nil, version: nil)
+            }
+        }
+        if package.kind == .formula && package.isInstalled {
+            if package.isUnexpectedlyUnlinked {
+                Button("Link") {
+                    Task { await app.packages.setLinked(package, linked: true) }
+                }
+            } else if package.isLinked {
+                Button("Unlink") {
+                    Task { await app.packages.setLinked(package, linked: false) }
+                }
             }
         }
 
@@ -389,6 +417,11 @@ struct PackageContextMenu: View {
 
         if let homepage = package.homepage, let url = URL(string: homepage) {
             Link("Open Homepage", destination: url)
+        }
+        if let appPath = package.appPath {
+            Button("Reveal in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: appPath)])
+            }
         }
         Button("Copy Name") {
             NSPasteboard.general.clearContents()

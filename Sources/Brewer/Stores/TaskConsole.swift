@@ -141,6 +141,9 @@ final class TaskConsole {
         }
 
         let exitCode: Int32 = await queue.enqueue { [weak self] in
+            // Cancelled while still waiting in line: never start it.
+            let wasCancelled = await MainActor.run { operation.state == .cancelled }
+            if wasCancelled { return -1 }
             await MainActor.run {
                 operation.state = .running
                 operation.startedAt = Date()
@@ -179,6 +182,11 @@ final class TaskConsole {
         }
 
         handles[operation.id] = nil
+        if operation.startedAt == nil {
+            // Cancelled before it ran: nothing to record in history or notify about.
+            cancelledIDs.remove(operation.id)
+            return false
+        }
         operation.finishedAt = Date()
         if cancelledIDs.contains(operation.id) || exitCode == 15 {
             operation.state = .cancelled
@@ -212,9 +220,24 @@ final class TaskConsole {
     // MARK: Control
 
     func terminateCurrent() {
-        guard let operation = runningOperation, let handle = handles[operation.id] else { return }
-        cancelledIDs.insert(operation.id)
-        handle.terminate()
+        guard let operation = runningOperation else { return }
+        cancel(operation)
+    }
+
+    /// Stops a running operation (SIGTERM) or drops a queued one before it starts.
+    func cancel(_ operation: Operation) {
+        switch operation.state {
+        case .running:
+            guard let handle = handles[operation.id] else { return }
+            cancelledIDs.insert(operation.id)
+            handle.terminate()
+        case .queued:
+            operation.state = .cancelled
+            operation.finishedAt = Date()
+            cancelledIDs.insert(operation.id)
+        default:
+            break
+        }
     }
 
     func clearFinished() {
