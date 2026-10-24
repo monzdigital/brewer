@@ -260,6 +260,9 @@
 
   /* Screenshot tour tabs */
   .tour { background: var(--stout); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .why { border-top: 1px solid var(--line); }
+  .why h2 { max-width: 860px; }
+  .why .f-list { max-width: 760px; margin-top: 26px; }
   .tour-head { text-align: center; max-width: 640px; margin: 0 auto 40px; }
   .tour-head .sec-sub { margin: 0 auto; }
   .tabs {
@@ -449,7 +452,7 @@
   </div>
 
   <div class="hero-shot" id="heroShot">
-    <div class="frame"><img src="{{SHOT:01-installed}}" alt="Brewer main window listing 203 installed Homebrew packages with a detail pane"></div>
+    <div class="frame"><img src="{{SHOT:01-installed}}" alt="Brewer main window listing installed Homebrew packages with a detail pane"></div>
   </div>
 </header>
 
@@ -462,6 +465,7 @@
     <span><b>Leftover-free</b> uninstalls, AppCleaner-style</span>
     <span><b>Brewfile</b> import &amp; export</span>
     <span><b>brew doctor</b> without the wall of text</span>
+    <span><b>Security scan</b> with brew vulns</span>
   </div>
 </div>
 
@@ -485,7 +489,7 @@
           <li>The menu bar icon shows the outdated count at a glance</li>
         </ul>
       </div>
-      <div class="f-shot"><img src="{{SHOT:02-updates}}" alt="Updates screen with 133 available updates and per-package upgrade buttons" loading="lazy"></div>
+      <div class="f-shot"><img src="{{SHOT:02-updates}}" alt="Updates screen listing available upgrades with per-package upgrade buttons" loading="lazy"></div>
     </div>
 
     <div class="feature-row flip rv">
@@ -494,7 +498,7 @@
         <h3>Watch Homebrew do its thing</h3>
         <p>A Cakebrew-style console docks at the bottom of the window. Install something and the real output streams in - colors, warnings, exit codes, a Stop button.</p>
         <ul class="f-list">
-          <li>Every operation is queued, logged, and kept in History</li>
+          <li>Every operation is queued and logged; failed ones keep their output in History</li>
           <li>Readable <code style="font-family:var(--mono);font-size:13px;color:var(--sage)">brew doctor</code>, cleanup previews with sizes</li>
           <li>Failures show the real error - not a shrug</li>
         </ul>
@@ -511,10 +515,11 @@
           <li>Update Sparkle apps directly: download, back up the old version, install</li>
           <li>Read the release notes before you say yes</li>
           <li>Roll back from automatic backups if a new version misbehaves</li>
+          <li>Setapp and App Store editions stay with their own stores, so licenses never break</li>
           <li>Adopt manually-installed apps so brew manages them from now on</li>
         </ul>
       </div>
-      <div class="f-shot"><img src="{{SHOT:04-apps}}" alt="Apps inventory listing 55 applications with install source badges and sizes" loading="lazy"></div>
+      <div class="f-shot"><img src="{{SHOT:04-apps}}" alt="Apps inventory listing every application with install source badges and sizes" loading="lazy"></div>
     </div>
 
     <div class="feature-row flip rv">
@@ -524,12 +529,27 @@
         <p>Drop any app on Brewer and it finds the caches, preferences, containers and logs left behind - then trashes it all together. Casks go through brew, leftovers included.</p>
         <ul class="f-list">
           <li>Everything goes to the Trash, so nothing is lost forever</li>
-          <li>SmartDelete watches the Trash and offers cleanup automatically</li>
+          <li>SmartDelete notices when you delete an app and offers to clean up after it</li>
           <li>System and Apple apps are protected - always</li>
         </ul>
       </div>
       <div class="f-shot"><img src="{{SHOT:06-uninstaller}}" alt="Uninstaller drop zone for removing an app together with its leftover files" loading="lazy"></div>
     </div>
+  </div>
+</section>
+
+<section class="why" id="why">
+  <div class="wrap rv">
+    <div class="sec-label">Why Brewer</div>
+    <h2>Homebrew has its own window now. Brewer looks after the whole Mac.</h2>
+    <p class="sec-sub">Homebrew 7 ships BrewUI, an official app for browsing and searching packages on macOS 26 and later. Brewer is built for everything around the packages, and it runs on macOS 14 Sonoma and later.</p>
+    <ul class="f-list">
+      <li>Mac App Store and Sparkle app updates next to Homebrew's, with release notes and backups</li>
+      <li>Uninstalls that take caches, preferences and containers with them</li>
+      <li>Scheduled, battery-aware upgrades with a menu bar counter</li>
+      <li>A health score, structured brew doctor findings and brew vulns security advisories</li>
+      <li>Services, taps, Brewfiles, app adoption and a history of every command</li>
+    </ul>
   </div>
 </section>
 
@@ -557,7 +577,7 @@
       <div class="cell"><div class="ico">🧾</div><h4>Know before you install</h4><p>Dependencies, license, caveats, disk usage and quarantine status - before anything touches your system.</p></div>
       <div class="cell"><div class="ico">⚙️</div><h4>Services</h4><p>Start, stop and restart brew services - databases and daemons - without touching launchctl.</p></div>
       <div class="cell"><div class="ico">📦</div><h4>Brewfile</h4><p>Export your whole setup to a Brewfile, or replay one on a new Mac. Moving machines takes minutes.</p></div>
-      <div class="cell"><div class="ico">🩺</div><h4>Health dashboard</h4><p>Outdated counts, deprecated packages, orphans, cache size and a doctor report - scored at a glance.</p></div>
+      <div class="cell"><div class="ico">🩺</div><h4>Health dashboard</h4><p>Outdated counts, deprecated packages, orphans, cache size, doctor findings and known vulnerabilities - scored at a glance.</p></div>
       <div class="cell"><div class="ico">🧹</div><h4>Cleanup</h4><p>Preview exactly what <code>brew cleanup</code> would delete, file by file with sizes, then reclaim the space.</p></div>
       <div class="cell"><div class="ico">🏷️</div><h4>Tags &amp; collections</h4><p>Favorites, pins, per-package notes, tags and collections - organize a big setup your way.</p></div>
       <div class="cell"><div class="ico">🍏</div><h4>Apple Silicon scan</h4><p>Find apps still running under Rosetta 2 and Homebrew installs living in the wrong prefix.</p></div>
@@ -578,11 +598,11 @@
         <span>Universal binary - Apple Silicon &amp; Intel · macOS 14 Sonoma or later</span>
         <span>Needs <a href="https://brew.sh" rel="noopener">Homebrew</a> (Brewer will point you there if it's missing)</span>
         <span>~3 MB zip · everything runs locally on your Mac · <a href="https://github.com/monzdigital/brewer" rel="noopener">source on GitHub</a></span>
-        <span>Early build, not yet notarized - macOS blocks the first launch:<br>System Settings → Privacy &amp; Security → scroll down → "Open Anyway" (one time).</span>
+        <span>Early build, not yet notarized - macOS blocks the first launch, and the first launch after each update:<br>System Settings → Privacy &amp; Security → scroll down → "Open Anyway".</span>
       </div>
     </div>
-    <p class="dl-alt">Prefer the terminal? &nbsp;<code>brew install --cask --no-quarantine monzdigital/tap/brewer</code><br>
-    <span style="opacity:.55;font-size:13px">--no-quarantine skips the Gatekeeper prompt · Homebrew asks you to trust the tap on first use.</span></p>
+    <p class="dl-alt">Prefer the terminal? &nbsp;<code>brew install --cask monzdigital/tap/brewer</code><br>
+    <span style="opacity:.55;font-size:13px">Homebrew asks you to trust the tap on first use · to skip the Gatekeeper prompt, run<br><code>xattr -dr com.apple.quarantine /Applications/Brewer.app</code></span></p>
   </div>
 </section>
 
@@ -604,10 +624,10 @@
   const SHOTS = [
     { src: "{{SHOT:01-installed}}",  tab: "Installed",   cap: "Everything you've installed - filter, multi-select, act in bulk." },
     { src: "{{SHOT:03-discover}}",   tab: "Discover",    cap: "A curated catalog with live install counts from formulae.brew.sh." },
-    { src: "{{SHOT:02-updates}}",    tab: "Updates",     cap: "133 outdated packages, upgradable together or one at a time." },
-    { src: "{{SHOT:07-health}}",     tab: "Health",      cap: "Outdated, deprecated, orphans, cache and doctor - scored at a glance." },
+    { src: "{{SHOT:02-updates}}",    tab: "Updates",     cap: "Every outdated package, upgradable together or one at a time - snoozed ones stay put." },
+    { src: "{{SHOT:07-health}}",     tab: "Health",      cap: "Outdated, deprecated, orphans, cache, doctor and security advisories - scored at a glance." },
     { src: "{{SHOT:05-appupdates}}", tab: "App Updates", cap: "Sparkle apps checked against their own feeds - update with automatic backup." },
-    { src: "{{SHOT:08-diagnostics}}",tab: "Diagnostics", cap: "brew doctor as readable cards instead of a wall of terminal text." },
+    { src: "{{SHOT:08-diagnostics}}",tab: "Diagnostics", cap: "brew doctor findings as cards with one-click fixes, plus a brew vulns security scan." },
   ];
 
   const tabs = document.getElementById("tabs");

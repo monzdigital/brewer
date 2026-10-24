@@ -11,12 +11,15 @@ make debug      # debug build
 make run        # build and open
 ```
 
-Requirements: macOS 14+, Swift 5.9+ (full Xcode or just the Command Line
-Tools), and Homebrew installed for runtime testing.
+Requirements: macOS 14+, Swift 5.9+ and Homebrew installed for runtime
+testing. With the macOS 27 SDK, SwiftUI's macros only build with Xcode's
+toolchain; the Command Line Tools still work with a macOS 26 SDK.
+`scripts/toolchain.sh` (used by `make`) picks a working combination.
 
 ## Before you open a PR
 
-1. Build cleanly: `swift build` with no errors.
+1. Build cleanly with no errors: `make debug`, or `swift build` with
+   `DEVELOPER_DIR` pointing at Xcode.
 2. Run the data-layer self-test against your real Homebrew install - all
    checks must pass:
 

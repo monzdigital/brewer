@@ -13,9 +13,17 @@ brew install --cask monzdigital/tap/brewer
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![Swift 5](https://img.shields.io/badge/Swift-5.9-orange) ![Free](https://img.shields.io/badge/price-free-brightgreen) ![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)
 
-> Early build, not yet notarized - macOS blocks the first launch. Open
-> System Settings → Privacy & Security, scroll down, and click "Open Anyway"
-> (one time). Installing via brew? Add `--no-quarantine` to skip the prompt.
+> Early build, not yet notarized - macOS blocks the first launch, and the first
+> launch after each update. Open System Settings → Privacy & Security, scroll
+> down, and click "Open Anyway", or clear the quarantine flag in Terminal:
+> `xattr -dr com.apple.quarantine /Applications/Brewer.app`
+> (Homebrew 7 removed the old `--no-quarantine` install option.)
+
+**Brewer and BrewUI.** Homebrew 7 ships BrewUI, an official app for browsing
+and searching packages on macOS 26 and later. Brewer is built for everything
+around the packages - App Store and Sparkle app updates, uninstalls with
+leftovers, scheduled upgrades, health and security checks - and runs on
+macOS 14 Sonoma and later.
 
 ## Features
 
@@ -53,7 +61,12 @@ brew install --cask monzdigital/tap/brewer
 **Keep Homebrew healthy**
 - Health dashboard: outdated count, deprecated/disabled packages, orphans,
   cache size, doctor issues, health score
-- `brew doctor` in a readable interface
+- `brew doctor` in a readable interface - on Homebrew 7 as structured findings
+  with affected packages and one-click fixes (`brew doctor --json`)
+- Security advisories: scan installed formulae with `brew vulns` (OSV.dev),
+  ranked by severity, with links, fix status and upgrade buttons
+- Support-tier notices when Homebrew 7 treats your Mac as Tier 3 (Intel,
+  Rosetta installs, macOS 14 Sonoma)
 - Cleanup preview (`--dry-run`) with per-file sizes, one-click cleanup
 - Remove quarantine flags from cask apps
 - Duplicate detection (multi-version kegs, Homebrew ⟷ App Store overlaps)
@@ -64,7 +77,8 @@ brew install --cask monzdigital/tap/brewer
 - Direct Sparkle updates: download → verify (EdDSA signature and code-signing
   identity) → back up the old version → extract (zip/dmg/tar) → install, with
   release-notes preview, automatic rollback on failure and restore from backups
-- Apps inside /Applications subfolders (Setapp, Utilities, vendor folders) are scanned too
+- Apps inside /Applications subfolders (Setapp, Utilities, vendor folders) are scanned too;
+  Setapp and App Store editions are left to their own stores, so their licenses never break
 - Background checks notify you when app updates appear
 
 **Complete uninstaller** *(AppCleaner-style)*
@@ -72,22 +86,25 @@ brew install --cask monzdigital/tap/brewer
   caches, preferences, support files, logs and containers (everything goes to the
   Trash - recoverable)
 - Homebrew casks are uninstalled through brew, leftovers cleaned after
-- SmartDelete: optionally watch the Trash and offer leftover cleanup when you
-  delete an app the normal way
+- SmartDelete: optionally watch your Applications folders and offer leftover
+  cleanup when you delete an app the normal way (no Full Disk Access needed)
 - Safety first: Apple/system apps are protected; name-only matches require review
 
 **Extras**
 - Installation history · dependency tree visualization · Apple Silicon scan
   (finds Intel-only apps and Rosetta-installed brew) · `mas` CLI integration
   · notifications when long operations finish · bottom-docked live console with
-  a cancellable queue (Homebrew runs one command at a time)
+  a cancellable queue (Homebrew runs one command at a time) · failed operations
+  keep their output in History
 
 ## Requirements
 
 - macOS 14 Sonoma or later
 - [Homebrew](https://brew.sh) (auto-detected at `/opt/homebrew` or `/usr/local`;
   custom path configurable in Settings)
-- To build: Xcode **or** just the Command Line Tools (Swift 5.9+)
+- To build: Xcode (recommended), or the Command Line Tools with a macOS 26 SDK.
+  With the macOS 27 SDK, SwiftUI's macros need Xcode's toolchain; `make app`
+  picks a working toolchain automatically (see `scripts/toolchain.sh`)
 
 ## Build & run
 

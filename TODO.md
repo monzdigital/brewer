@@ -38,8 +38,12 @@ macOS 15+ "sağ tık → Aç" atlatmasını kaldırdı; imzasız uygulama her ku
 Developer ID imzası + Apple notarizasyonu çözer - o zaman uygulama ilk tıkta,
 uyarısız açılır. Altyapı hazır (release.sh), eksik yalnızca hesap adımları
 (aşağıda). Notarizasyon gelene kadar geçici hafifletmeler uygulandı:
-site/README/cask "Open Anyway" akışını anlatıyor ve brew komutu
---no-quarantine öneriyor (bu bayrak diyaloğu tamamen atlar).
+site/README/cask "Open Anyway" akışını anlatıyor; terminal için
+`xattr -dr com.apple.quarantine /Applications/Brewer.app` öneriliyor.
+Homebrew 7 `--no-quarantine` bayrağını tamamen kaldırdı (2026-10). Ayrıca
+Homebrew 7, "Open Anyway" onayını yükseltmeye yalnızca imza kimliği
+eşleşirse taşıyor; ad-hoc imza her derlemede değiştiği için notarize
+edilmemiş Brewer her brew yükseltmesinden sonra yeniden engelleniyor.
 
 ### Kullanıcının yapması gerekenler (hesap gerektirir)
 - [ ] Apple Developer Program üyeliği (99 USD/yıl) - https://developer.apple.com/programs/
@@ -63,7 +67,8 @@ https://github.com/monzdigital/brewer/community listesini tamamla:
 Hedef: önek olmadan `brew install --cask brewer` çalışsın. Kabul şartları:
 - [ ] Bilinirlik eşiği: GitHub'da ≥75 yıldız VEYA ≥30 fork VEYA ≥30 izleyiciden biri
 - [ ] Repo yaşı > 30 gün (brew audit bunu denetler)
-- [ ] Sürüm stabil ve versiyonlu (✓ v1.0.0 hazır); notarizasyon şart değil ama önerilir
+- [ ] Sürüm stabil ve versiyonlu (✓ v1.0.0 hazır); Homebrew 7 ile homebrew/cask
+      artık imzalı ve notarize edilmiş uygulama şartı arıyor (brew audit), yani notarizasyon zorunlu
 - [ ] Hazır olunca: `homebrew/homebrew-cask` fork'la → `Casks/b/brewer.rb` ekle (tap'tekinin aynısı)
       → `brew audit --new --cask brewer` temiz geçmeli → PR aç → maintainer onayı
 - Kabul sonrası kendi tap'teki cask kaldırılır (çakışmayı önlemek için)
@@ -97,7 +102,7 @@ oturumdaki "Brewer Must-Have Analizi" artifact'ı. Kademeli özet:
 - [ ] Kalıntı tarayıcı: plist içeriği (LaunchAgents/Daemons), pkg makbuzları, sahipsiz kalıntılar
 - [ ] Geliştirici önbellekleri temizliği (DerivedData, npm/pip/cargo/gradle/CocoaPods, Docker)
 - [ ] Login'de gizli başlangıç (menü çubuğu modunda pencere açmadan)
-- [ ] Kurulum seçenekleri (`--HEAD`, `--build-from-source`, `--no-quarantine`, `--appdir`)
+- [ ] Kurulum seçenekleri (`--HEAD`, `--build-from-source`, `--appdir`)
 - [ ] Konsol: çıktı arama, komut paleti, Terminal'de aç
 - [ ] Onboarding (Homebrew yoksa kurulum komutu, ilk çalıştırma turu)
 - [ ] Menü çubuğunda Sparkle + App Store güncellemeleri, "Snooze all"
@@ -108,14 +113,38 @@ oturumdaki "Brewer Must-Have Analizi" artifact'ı. Kademeli özet:
 - [ ] Shortcuts / App Intents
 - [ ] Brewfile diff, `bundle cleanup`, iCloud/Git senkron
 - [ ] Anında açılış (son snapshot önbelleği)
-- [ ] History'de çıktı saklama + tekrar çalıştır
+- [ ] History'de çıktı saklama + tekrar çalıştır (çıktı saklama 1.2.0'da yapıldı; tekrar çalıştır bekliyor)
 - [ ] Boyut/bağımlılık görselleştirme, "en büyük paketler"
 - [ ] Yükseltme sonrası cleanup/autoremove politikası
 - [ ] Widget (Xcode uzantı hedefi gerektirir)
 
 ### T3 - Kalite ve altyapı
 - [ ] Swift 6 strict concurrency uyarıları (TaskConsole captured self, DownloadDelegate)
-- [ ] os.Logger + "Sorun bildir" akışı
+- [ ] os.Logger + "Sorun bildir" akışı (SmartDelete 1.2.0'da os.Logger kullanıyor)
 - [ ] `CGWindowListCreateImage` → ScreenCaptureKit (tour-shots)
 - [ ] Erişilebilirlik denetimi
 - [ ] Notarizasyon sonrası Hardened Runtime regresyon testi
+
+## Genel kontrol: macOS 27 + Homebrew 7 (2026-10-24, sürüm 1.2.0)
+
+Ortam: macOS 27.0.1 "Golden Gate", Homebrew 7.0.10, Swift 6.4, Xcode 27.1.
+Yüklü 1.1.0 yeni sistemde öz-testin tamamını geçti; Homebrew 7 JSON
+biçimleri değişmemişti. Bulunan ve 1.2.0'da düzeltilenler:
+- [x] Derleme bozuktu: SDK 27'de SwiftUI State bir makro, eklentisi yalnızca Xcode'da.
+      `scripts/toolchain.sh` Xcode'u, yoksa CLT + macOS 26 SDK'yı seçiyor
+- [x] `--no-quarantine` Homebrew 7'de kaldırıldı: site, README, cask notu ve 1.1.0 notları düzeltildi
+- [x] SmartDelete hiç çalışmıyordu (~/.Trash Tam Disk Erişimi istiyor): artık
+      Uygulamalar klasörleri FSEvents ile izleniyor, izin gerekmiyor
+- [x] App Updates, Setapp sürümlerine satıcının normal/deneme akışından güncelleme
+      öneriyordu (lisans bozabilirdi): Setapp ve App Store sürümleri hariç
+- [x] Başarısız güncelleme yedeği kalıyordu, aynı sürüm tekrar yedekleniyordu
+- [x] Discover: Arc kullanımdan kalktı, yerine Zen; kartlar deprecated/disabled durumunu gösteriyor
+- [x] Brewfile sayacı açıklama satırlarını da sayıyordu
+- [x] Homebrew 7 fırsatları: `brew doctor --json`, `brew vulns --json`, tap-info `trusted`, Tier 3 uyarısı
+- [x] BrewUI (Homebrew'un resmi arayüzü, `brew install homebrew-app`, macOS 26+) karşısında
+      site ve README konumlandırması
+- [x] Başarısız işlemlerin çıktısı Geçmiş'te saklanıyor
+- [ ] "Adopt 1password" 2026-10-24'te 21 dakika sonra başarısız oldu; çıktı o zaman
+      saklanmıyordu. 1.2.0 ile tekrar denenip Geçmiş'teki çıktıya bakılmalı
+- [ ] Notarizasyon hala bekliyor: Anahtar Zinciri'nde yalnızca "Apple Development"
+      sertifikası var, "Developer ID Application" yok
