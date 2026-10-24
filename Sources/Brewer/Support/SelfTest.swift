@@ -344,6 +344,22 @@ enum SelfTestRunner {
         check("SmartDelete: FSEvents reports an app being added and removed",
               watcher != nil && sawAdd && sawRemove, detail: "added=\(sawAdd) removed=\(sawRemove)")
 
+        // 27b. Shell must never lose a process termination. With waitUntilExit()
+        // this hung after a few dozen short processes; a watchdog turns a hang
+        // into a failure instead of a stuck self-test.
+        let shellWatchdog = DispatchWorkItem {
+            print("FAIL  shell: short processes all complete - hung (lost process termination)")
+            exit(1)
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 90, execute: shellWatchdog)
+        var shellRunsOK = 0
+        for _ in 0..<150 {
+            let result = await Shell.run("/bin/sh", ["-c", "echo out; echo err >&2"])
+            if result.exitCode == 0 && result.stdout == "out" && result.stderr == "err" { shellRunsOK += 1 }
+        }
+        shellWatchdog.cancel()
+        check("shell: short processes all complete", shellRunsOK == 150, detail: "\(shellRunsOK)/150")
+
         // 28. Live Homebrew 7 payloads on this machine
         if await client.brewMajorVersion() >= 7 {
             let liveDoctor = await client.doctorReport()

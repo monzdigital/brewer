@@ -64,9 +64,20 @@ enum Shell {
         process.standardInput = FileHandle.nullDevice
 
         let events = AsyncStream<ShellEvent> { continuation in
+            // Finish only after the process has terminated AND both pipes hit
+            // EOF. Termination comes from terminationHandler, never from
+            // waitUntilExit(): called on a GCD worker after EOF, waitUntilExit
+            // could miss a termination that landed a moment earlier and then
+            // sleep in that thread's run loop forever, leaving the operation
+            // "running" with no process behind it.
+            let group = DispatchGroup()
+            group.enter()
+            process.terminationHandler = { _ in group.leave() }
             do {
                 try process.run()
             } catch {
+                process.terminationHandler = nil
+                group.leave()
                 continuation.yield(.output(line: "Failed to launch \(executablePath): \(error.localizedDescription)", isError: true, overwritesPrevious: false))
                 continuation.yield(.finished(-1))
                 continuation.finish()
@@ -76,14 +87,12 @@ enum Shell {
             // Read both pipes with plain blocking reads on GCD.
             // (FileHandle.bytes.lines deadlocks when two pipes are drained
             // concurrently and the output is large, so we roll our own.)
-            let group = DispatchGroup()
             group.enter()
             pump(outPipe.fileHandleForReading, isError: false, into: continuation) { group.leave() }
             group.enter()
             pump(errPipe.fileHandleForReading, isError: true, into: continuation) { group.leave() }
 
             group.notify(queue: .global(qos: .userInitiated)) {
-                process.waitUntilExit()
                 continuation.yield(.finished(process.terminationStatus))
                 continuation.finish()
             }
