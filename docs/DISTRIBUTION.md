@@ -5,7 +5,7 @@
 Brewer, **Mac App Store'a konulamayan** bir uygulama sınıfındadır ve bunun
 sebebi teknik bir zorunluluktur: App Store'daki her uygulama **App Sandbox**
 içinde çalışmak zorundadır, ancak Brewer'ın temel işlevleri sandbox içinde
-imkânsızdır:
+imkansızdır:
 
 | Brewer'ın yaptığı iş | Sandbox'ta mümkün mü? |
 |---|---|

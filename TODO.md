@@ -9,7 +9,7 @@
 
 **Önemli gerçek - Mac App Store engeli:** App Store'daki tüm uygulamalar App
 Sandbox zorunluluğuna tabidir. Brewer'ın yaptığı işlerin neredeyse tamamı
-sandbox içinde **teknik olarak imkânsızdır**: `brew` çalıştırmak, /opt/homebrew
+sandbox içinde **teknik olarak imkansızdır**: `brew` çalıştırmak, /opt/homebrew
 ve /Applications'a yazmak, başka uygulamaları kapatmak, karantina bayrağı
 silmek, Library klasörlerinde kalıntı taramak, uygulama paketlerini değiştirmek.
 Bu yüzden Cork, Cakebrew, AppCleaner ve MacUpdater gibi bu sınıftaki tüm
