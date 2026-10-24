@@ -11,7 +11,8 @@ CONFIG="${1:-release}"
 echo "==> swift build -c $CONFIG"
 swift build -c "$CONFIG"
 
-BIN=".build/$CONFIG/Brewer"
+# Ask SwiftPM where it put the binary: the layout differs between build systems.
+BIN="$(swift build -c "$CONFIG" --show-bin-path)/Brewer"
 APP="dist/Brewer.app"
 
 rm -rf "$APP"

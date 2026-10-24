@@ -26,20 +26,33 @@ VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" packagi
 APP="dist/Brewer.app"
 ZIP="dist/Brewer-${VERSION}.zip"
 
-echo "==> Building arm64"
-swift build -c release --triple arm64-apple-macosx14.0
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
 
-echo "==> Building x86_64"
-swift build -c release --triple x86_64-apple-macosx14.0
+# Build one architecture and take its binary right away. Where SwiftPM puts it
+# depends on the build system: the native one used .build/<triple>/release,
+# while swiftbuild (the default since Swift 6.4) writes every triple to the
+# same .build/out/Products/Release - the next build would overwrite it.
+build_arch() {
+  local arch="$1" triple="$1-apple-macosx14.0" binary
+  echo "==> Building $arch"
+  swift build -c release --triple "$triple"
+  binary="$(swift build -c release --triple "$triple" --show-bin-path)/Brewer"
+  if [ "$(lipo -archs "$binary" 2>/dev/null)" != "$arch" ]; then
+    echo "!! $binary is not a $arch binary ($(lipo -archs "$binary" 2>&1))" >&2
+    exit 1
+  fi
+  cp "$binary" "$WORK/Brewer-$arch"
+}
+
+build_arch arm64
+build_arch x86_64
 
 echo "==> Creating universal binary"
 mkdir -p dist
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-lipo -create \
-  ".build/arm64-apple-macosx/release/Brewer" \
-  ".build/x86_64-apple-macosx/release/Brewer" \
-  -output "$APP/Contents/MacOS/Brewer"
+lipo -create "$WORK/Brewer-arm64" "$WORK/Brewer-x86_64" -output "$APP/Contents/MacOS/Brewer"
 lipo -archs "$APP/Contents/MacOS/Brewer"
 
 cp packaging/Info.plist "$APP/Contents/Info.plist"
