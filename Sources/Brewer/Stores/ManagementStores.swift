@@ -67,7 +67,7 @@ final class TapsStore {
     var taps: [TapItem] = []
     var infoCache: [String: TapInfoJSON] = [:]
     var isLoading = false
-    /// Homebrew 6 refuses to load third-party taps until they are trusted.
+    /// Homebrew 6+ refuses to load third-party taps until they are trusted.
     var supportsTrust = false
     var trustedTaps: Set<String> = []
 
@@ -83,13 +83,30 @@ final class TapsStore {
     func refresh() async {
         isLoading = true
         defer { isLoading = false }
+        // `brew tap` lists only taps the user added (the built-in core/cask
+        // catalogs are not removable, so they stay out of this list).
         let names = await client.tapNames()
         taps = names.map { TapItem(name: $0) }
         if !trustSupportChecked {
             supportsTrust = await client.supportsTapTrust()
             trustSupportChecked = true
         }
-        trustedTaps = BrewClient.trustedTapNames()
+        await refreshDetails()
+    }
+
+    /// One `brew tap-info --installed` call for counts, remotes and (on
+    /// Homebrew 7+) the official trust flag; Homebrew's private trust file is
+    /// only the fallback for versions without that flag.
+    private func refreshDetails() async {
+        let infos = await client.installedTapsInfo() ?? []
+        for info in infos { infoCache[info.name] = info }
+        trustedTaps = Self.trustedNames(fromTapInfo: infos) ?? BrewClient.trustedTapNames()
+    }
+
+    /// nil when the payload carries no `trusted` flag (Homebrew 6).
+    nonisolated static func trustedNames(fromTapInfo infos: [TapInfoJSON]) -> Set<String>? {
+        guard infos.contains(where: { $0.trusted != nil }) else { return nil }
+        return Set(infos.filter { $0.trusted == true }.map { $0.name.lowercased() })
     }
 
     func isTrusted(_ name: String) -> Bool {
@@ -105,7 +122,7 @@ final class TapsStore {
             presentConsole: false,
             subjects: ["tap:\(name)"]
         )
-        trustedTaps = BrewClient.trustedTapNames()
+        await refreshDetails()
     }
 
     func loadInfoIfNeeded(for name: String) {
@@ -166,10 +183,20 @@ final class BrewfileModel {
         defer { isWorking = false }
         if let text = await client.bundleDumpPreview() {
             previewText = text
-            statusMessage = "Preview generated from your current setup (\(text.split(separator: "\n").count) entries)."
+            let count = Self.entryCount(in: text)
+            statusMessage = "Preview generated from your current setup (\(count) entr\(count == 1 ? "y" : "ies"))."
         } else {
             statusMessage = "Could not generate a Brewfile preview."
         }
+    }
+
+    /// Real Brewfile entries: `brew bundle dump` also writes description
+    /// comments, which are not entries.
+    nonisolated static func entryCount(in brewfile: String) -> Int {
+        brewfile.split(separator: "\n").filter { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            return !trimmed.isEmpty && !trimmed.hasPrefix("#")
+        }.count
     }
 
     func exportBrewfile() {

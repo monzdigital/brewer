@@ -75,6 +75,45 @@ enum AppInfo {
     }
 }
 
+// MARK: - Homebrew platform support (support tiers)
+
+/// Homebrew 7 moved Intel Macs and macOS 14 Sonoma to Tier 3: no new bottles,
+/// so upgrades may compile from source. Intel support ends 2027-09-01.
+enum PlatformSupport {
+    struct Notice: Hashable {
+        enum Kind: Hashable { case intel, rosetta, sonoma }
+        let kind: Kind
+        let title: String
+        let detail: String
+    }
+
+    static func notice(brewMajor: Int, macOSMajor: Int, appleSilicon: Bool, rosettaBrew: Bool) -> Notice? {
+        guard brewMajor >= 7 else { return nil }
+        if rosettaBrew {
+            return Notice(
+                kind: .rosetta,
+                title: "Homebrew runs under Rosetta, which is Tier 3 in Homebrew 7",
+                detail: "Homebrew no longer builds new Intel (x86_64) bottles, so updates may compile from source, and Intel support ends on September 1, 2027. A native installation in /opt/homebrew restores full support."
+            )
+        }
+        if !appleSilicon {
+            return Notice(
+                kind: .intel,
+                title: "Intel Macs are Tier 3 in Homebrew 7",
+                detail: "Homebrew no longer builds new Intel (x86_64) bottles, so updates may compile from source. Homebrew plans to end Intel support on September 1, 2027."
+            )
+        }
+        if macOSMajor <= 14 {
+            return Notice(
+                kind: .sonoma,
+                title: "macOS 14 Sonoma is Tier 3 in Homebrew 7",
+                detail: "Homebrew no longer builds new bottles for Sonoma, so updates may compile from source and installer-package casks may not install. macOS 15 or later restores full support."
+            )
+        }
+        return nil
+    }
+}
+
 // MARK: - Formatting
 
 enum Format {

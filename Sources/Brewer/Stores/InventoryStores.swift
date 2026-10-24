@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Observation
+import os
 
 // MARK: - AppsInventoryStore (MacUpdater-style full system scan)
 
@@ -43,17 +44,8 @@ final class AppsInventoryStore {
         }.value
 
         apps = scanned.map { (app, archs) in
-            let source: AppSource
             let token = caskByPath[app.url.path]
-            if token != nil {
-                source = .homebrew
-            } else if app.hasMASReceipt {
-                source = .appStore
-            } else if app.sparkleFeedURL != nil {
-                source = .sparkle
-            } else {
-                source = .manual
-            }
+            let source: AppSource = token != nil ? .homebrew : AppSource.detect(for: app)
             return InventoryApp(app: app, source: source, caskToken: token, archs: archs)
         }
         lastScan = Date()
@@ -108,13 +100,19 @@ final class UninstallerStore {
     var includeAppItself = true
     var resultMessage: String?
 
-    // SmartDelete
-    var recentlyTrashed: [ScannedApp] = []
-    private var trashWatcher: DispatchSourceFileSystemObject?
-    private var knownTrashApps: Set<String> = []
-    /// Bundle names Brewer itself just trashed - the watcher must not offer to
-    /// clean up an app we already cleaned up.
-    private var trashedByBrewer: Set<String> = []
+    // SmartDelete: watches the Applications folders (no Full Disk Access needed,
+    // unlike ~/.Trash) and offers leftover cleanup for apps that disappear.
+    var recentlyRemoved: [ScannedApp] = []
+    private var appsWatcher: FolderWatcher?
+    private var appSnapshot: [String: ScannedApp] = [:]
+    private var snapshotReady = false
+    private var settleTask: Task<Void, Never>?
+    /// Set when a change happened while a brew command ran: cask upgrades,
+    /// reinstalls and uninstalls remove apps on purpose.
+    private var changedDuringBrewOperation = false
+    /// App paths Brewer's own uninstaller just removed - no second offer.
+    private var removedByBrewer: Set<String> = []
+    private let logger = Logger(subsystem: "com.monz.brewer", category: "SmartDelete")
 
     private unowned let console: TaskConsole
     private unowned let packages: PackageStore
@@ -132,10 +130,24 @@ final class UninstallerStore {
 
     func beginReview(appURL: URL) async {
         resultMessage = nil
-        guard appURL.pathExtension == "app", let scanned = AppScanner.scanApp(at: appURL) else {
+        guard appURL.pathExtension == "app" else {
             resultMessage = "That doesn't look like an app bundle."
             return
         }
+        guard let scanned = AppScanner.scanApp(at: appURL) else {
+            resultMessage = appURL.path.contains("/.Trash/")
+                ? "macOS doesn't let Brewer read apps inside the Trash. Turn on SmartDelete and pick the app from \"Recently removed apps\", or drop apps here before deleting them."
+                : "Brewer couldn't read that app bundle."
+            return
+        }
+        await beginReview(app: scanned)
+    }
+
+    /// Reviews an app from a scan - it may already be gone from disk (SmartDelete),
+    /// in which case only its leftovers are offered.
+    func beginReview(app scanned: ScannedApp) async {
+        resultMessage = nil
+        let appURL = scanned.url
         isProtectedTarget = LeftoverScanner.isProtected(bundleID: scanned.bundleID, appURL: appURL)
         let caskToken = packages.casks.first { $0.appPath == appURL.path }?.name
         let isRunning = NSWorkspace.shared.runningApplications.contains { $0.bundleURL?.path == appURL.path }
@@ -181,6 +193,8 @@ final class UninstallerStore {
         }
 
         // 2. Remove the app itself - through Homebrew when it owns the cask.
+        removedByBrewer.insert(review.app.url.path)
+        recentlyRemoved.removeAll { $0.id == review.app.id }
         if let token = review.caskToken {
             let ok = await console.runBrew(
                 title: "Uninstall \(token)",
@@ -189,7 +203,6 @@ final class UninstallerStore {
             notes.append(ok ? "Removed via Homebrew (\(token))." : "brew uninstall \(token) failed - see the console.")
             await packages.refresh()
         } else if includeAppItself && review.appStillOnDisk {
-            trashedByBrewer.insert(review.app.url.lastPathComponent)
             let result = LeftoverScanner.moveToTrash(paths: [review.app.url.path])
             if result.trashed.isEmpty {
                 notes.append("Could not move the app to the Trash: \(result.failed.first?.reason ?? "unknown error")")
@@ -218,66 +231,114 @@ final class UninstallerStore {
         checkedIDs = []
     }
 
-    // MARK: SmartDelete (Trash watcher)
+    // MARK: SmartDelete (Applications watcher)
 
     var smartDeleteEnabled: Bool {
         UserDefaults.standard.bool(forKey: Prefs.smartDelete)
     }
 
+    var isWatchingApplications: Bool { appsWatcher != nil }
+
     func setSmartDelete(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: Prefs.smartDelete)
-        if enabled { startTrashWatcher() } else { stopTrashWatcher() }
+        if enabled { startApplicationsWatcher() } else { stopApplicationsWatcher() }
     }
 
-    func startTrashWatcherIfEnabled() {
-        if smartDeleteEnabled { startTrashWatcher() }
+    func startWatcherIfEnabled() {
+        if smartDeleteEnabled { startApplicationsWatcher() }
     }
 
-    private var trashPath: String { NSHomeDirectory() + "/.Trash" }
-
-    private func startTrashWatcher() {
-        guard trashWatcher == nil else { return }
-        knownTrashApps = Set((try? FileManager.default.contentsOfDirectory(atPath: trashPath))?
-            .filter { $0.hasSuffix(".app") } ?? [])
-        let descriptor = open(trashPath, O_EVTONLY)
-        guard descriptor >= 0 else { return }
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: descriptor,
-            eventMask: .write,
-            queue: .main
-        )
-        source.setEventHandler { [weak self] in
-            self?.trashDidChange()
+    private func startApplicationsWatcher() {
+        guard appsWatcher == nil else { return }
+        let roots = AppScanner.applicationRoots
+            .filter { FileManager.default.fileExists(atPath: $0) }
+            .map(FolderWatcher.canonicalPath)
+        appsWatcher = FolderWatcher(paths: roots) { [weak self] changed in
+            guard changed.contains(where: { FolderWatcher.isRelevantChange($0, roots: roots) }) else { return }
+            Task { @MainActor [weak self] in self?.applicationsChanged() }
         }
-        source.setCancelHandler { close(descriptor) }
-        source.resume()
-        trashWatcher = source
+        if appsWatcher == nil {
+            logger.error("SmartDelete could not start watching \(roots.joined(separator: ", "), privacy: .public)")
+            return
+        }
+        Task { [weak self] in
+            let apps = await Task.detached(priority: .utility) { AppScanner.scanApplications() }.value
+            guard let self, self.appsWatcher != nil else { return }
+            self.appSnapshot = Self.snapshot(of: apps)
+            self.snapshotReady = true
+            self.logger.notice("SmartDelete is watching \(apps.count) apps")
+        }
     }
 
-    private func stopTrashWatcher() {
-        trashWatcher?.cancel()
-        trashWatcher = nil
+    private func stopApplicationsWatcher() {
+        appsWatcher?.stop()
+        appsWatcher = nil
+        settleTask?.cancel()
+        settleTask = nil
+        snapshotReady = false
+        appSnapshot = [:]
     }
 
-    private func trashDidChange() {
-        let current = Set((try? FileManager.default.contentsOfDirectory(atPath: trashPath))?
-            .filter { $0.hasSuffix(".app") } ?? [])
-        let added = current.subtracting(knownTrashApps)
-        knownTrashApps = current
-        for name in added {
-            if trashedByBrewer.remove(name) != nil { continue }
-            let url = URL(fileURLWithPath: trashPath + "/" + name)
-            guard let scanned = AppScanner.scanApp(at: url),
-                  !LeftoverScanner.isProtected(bundleID: scanned.bundleID, appURL: url) else { continue }
-            if !recentlyTrashed.contains(where: { $0.id == scanned.id }) {
-                recentlyTrashed.insert(scanned, at: 0)
-                if recentlyTrashed.count > 10 { recentlyTrashed.removeLast() }
+    /// Waits until the folders have been quiet for a moment and no brew command
+    /// is running, then compares against the last snapshot.
+    private func applicationsChanged() {
+        if console.isBusy { changedDuringBrewOperation = true }
+        settleTask?.cancel()
+        settleTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled, let self else { return }
+            while self.console.isBusy {
+                self.changedDuringBrewOperation = true
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                if Task.isCancelled { return }
             }
+            await self.compareWithSnapshot()
+        }
+    }
+
+    private func compareWithSnapshot() async {
+        let apps = await Task.detached(priority: .utility) { AppScanner.scanApplications() }.value
+        let current = Self.snapshot(of: apps)
+        let previous = appSnapshot
+        appSnapshot = current
+        let wasBrewOperation = changedDuringBrewOperation
+        changedDuringBrewOperation = false
+        guard snapshotReady else { return }
+
+        for app in Self.removedApps(previous: previous, current: current) {
+            if removedByBrewer.remove(app.url.path) != nil { continue }
+            if wasBrewOperation {
+                logger.notice("SmartDelete ignored \(app.name, privacy: .public): removed while a brew command ran")
+                continue
+            }
+            guard !LeftoverScanner.isProtected(bundleID: app.bundleID, appURL: app.url) else { continue }
+            logger.notice("SmartDelete detected removal of \(app.name, privacy: .public) (\(app.bundleID ?? "no bundle id", privacy: .public))")
+            recentlyRemoved.removeAll { $0.id == app.id }
+            recentlyRemoved.insert(app, at: 0)
+            if recentlyRemoved.count > 10 { recentlyRemoved.removeLast() }
             NotificationManager.post(
-                title: "\(scanned.name) moved to Trash",
-                body: "Brewer can also remove its leftover files - click to open the Uninstaller.",
+                title: "\(app.name) was removed",
+                body: "Brewer can also clean up the files it left behind - click to review them.",
                 page: .uninstaller
             )
         }
+    }
+
+    nonisolated static func snapshot(of apps: [ScannedApp]) -> [String: ScannedApp] {
+        Dictionary(apps.map { ($0.url.path, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// Apps that were present before and are gone now - unless an app with the
+    /// same bundle ID still exists (moved to another folder, or replaced by an
+    /// update that renamed the bundle).
+    nonisolated static func removedApps(previous: [String: ScannedApp], current: [String: ScannedApp]) -> [ScannedApp] {
+        let currentBundleIDs = Set(current.values.compactMap(\.bundleID))
+        return previous.values
+            .filter { app in
+                guard current[app.url.path] == nil else { return false }
+                if let bundleID = app.bundleID, currentBundleIDs.contains(bundleID) { return false }
+                return true
+            }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 }

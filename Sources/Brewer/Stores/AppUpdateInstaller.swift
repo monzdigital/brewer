@@ -60,6 +60,7 @@ final class AppUpdateInstaller {
 
         let staging = Self.stagingRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: staging) }
+        var newBackup: URL?
 
         do {
             try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
@@ -93,9 +94,7 @@ final class AppUpdateInstaller {
 
             if UserDefaults.standard.bool(forKey: Prefs.backupBeforeUpdate) {
                 phases[key] = .backingUp
-                try await Self.backup(appPath: key, appName: update.appName, version: update.currentVersion)
-                await loadBackups()
-                Self.pruneBackups(keep: max(1, UserDefaults.standard.integer(forKey: Prefs.keepBackupsPerApp)))
+                newBackup = try await Self.backup(appPath: key, appName: update.appName, version: update.currentVersion)
             }
 
             phases[key] = .extracting
@@ -104,6 +103,7 @@ final class AppUpdateInstaller {
             switch payload {
             case .package(let pkg):
                 try Self.handOffPackage(pkg)
+                await settleBackups()
                 phases[key] = .finished("Installer package opened - complete the update there.")
                 return
             case .app(let url):
@@ -116,6 +116,9 @@ final class AppUpdateInstaller {
 
             phases[key] = .installing
             try await Self.install(newAppAt: newApp, replacing: key)
+            // Prune only after a successful swap: a failed update must never cost
+            // an older backup.
+            await settleBackups()
 
             phases[key] = .finished("Updated to \(update.latestVersion).")
             if UserDefaults.standard.bool(forKey: Prefs.notifyOnOperations) {
@@ -127,6 +130,12 @@ final class AppUpdateInstaller {
             }
             await onInstalled?(key)
         } catch {
+            // The app is still in place (nothing was installed, or the swap was
+            // rolled back), so this attempt's backup only duplicates it.
+            if let newBackup, FileManager.default.fileExists(atPath: key) {
+                try? FileManager.default.removeItem(at: newBackup)
+                await loadBackups()
+            }
             phases[key] = .failed(error.localizedDescription)
             if UserDefaults.standard.bool(forKey: Prefs.notifyOnOperations) {
                 NotificationManager.post(
@@ -253,18 +262,32 @@ final class AppUpdateInstaller {
         name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
     }
 
-    nonisolated static func backup(appPath: String, appName: String, version: String) async throws {
+    /// Backs up the current version unless that exact version is already backed
+    /// up. Returns the new backup folder, or nil when it was skipped.
+    nonisolated static func backup(appPath: String, appName: String, version: String) async throws -> URL? {
+        let appFolder = backupsRoot.appendingPathComponent(sanitized(appName), isDirectory: true)
+        let bundleName = URL(fileURLWithPath: appPath).lastPathComponent
+        if hasBackup(in: appFolder, version: version, bundleName: bundleName) { return nil }
+
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmmss"
-        let dir = backupsRoot
-            .appendingPathComponent(sanitized(appName), isDirectory: true)
-            .appendingPathComponent("\(sanitized(version))_\(formatter.string(from: Date()))", isDirectory: true)
+        let dir = appFolder.appendingPathComponent("\(sanitized(version))_\(formatter.string(from: Date()))", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try "\(appPath)".write(to: dir.appendingPathComponent("origin.txt"), atomically: true, encoding: .utf8)
-        let target = dir.appendingPathComponent(URL(fileURLWithPath: appPath).lastPathComponent)
-        let result = await Shell.run("/usr/bin/ditto", [appPath, target.path])
+        let result = await Shell.run("/usr/bin/ditto", [appPath, dir.appendingPathComponent(bundleName).path])
         guard result.succeeded else {
+            try? FileManager.default.removeItem(at: dir)
             throw InstallerError.step("Backup failed: \(result.stderr.prefix(200))")
+        }
+        return dir
+    }
+
+    nonisolated static func hasBackup(in appFolder: URL, version: String, bundleName: String) -> Bool {
+        let prefix = sanitized(version) + "_"
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: appFolder.path) else { return false }
+        return names.contains { name in
+            name.hasPrefix(prefix)
+                && FileManager.default.fileExists(atPath: appFolder.appendingPathComponent(name).appendingPathComponent(bundleName).path)
         }
     }
 
@@ -467,16 +490,40 @@ final class AppUpdateInstaller {
         backupNames.sorted { timestampPart(ofBackupName: $0) > timestampPart(ofBackupName: $1) }
     }
 
+    /// Backup folders to delete for one app: older copies of a version that is
+    /// already kept (the newest copy wins), then everything beyond `keep`.
+    nonisolated static func backupsToRemove(_ names: [String], keep: Int) -> [String] {
+        var keptVersions: Set<String> = []
+        var removals: [String] = []
+        for name in sortedNewestFirst(names) {
+            let version = versionPart(ofBackupName: name)
+            if keptVersions.contains(version) || keptVersions.count >= keep {
+                removals.append(name)
+            } else {
+                keptVersions.insert(version)
+            }
+        }
+        return removals
+    }
+
     nonisolated static func pruneBackups(keep: Int) {
         let fileManager = FileManager.default
         guard let appDirs = try? fileManager.contentsOfDirectory(atPath: backupsRoot.path) else { return }
         for appDir in appDirs where !appDir.hasPrefix(".") {
             let appDirURL = backupsRoot.appendingPathComponent(appDir)
             guard let names = try? fileManager.contentsOfDirectory(atPath: appDirURL.path) else { continue }
-            let ordered = sortedNewestFirst(names.filter { !$0.hasPrefix(".") })
-            for oldest in ordered.dropFirst(keep) {
-                try? fileManager.removeItem(at: appDirURL.appendingPathComponent(oldest))
+            for name in backupsToRemove(names.filter { !$0.hasPrefix(".") }, keep: keep) {
+                try? fileManager.removeItem(at: appDirURL.appendingPathComponent(name))
             }
         }
+    }
+
+    /// Applies the "keep N per app, one copy per version" policy and reloads.
+    func settleBackups() async {
+        let keep = max(1, UserDefaults.standard.integer(forKey: Prefs.keepBackupsPerApp))
+        await Task.detached(priority: .utility) {
+            AppUpdateInstaller.pruneBackups(keep: keep)
+        }.value
+        await loadBackups()
     }
 }

@@ -33,7 +33,7 @@ final class AppUpdatesStore {
             AppScanner.scanApplications()
         }.value
 
-        let sparkleApps = apps.filter { $0.sparkleFeedURL != nil && $0.shortVersion != nil }
+        let sparkleApps = apps.filter(Self.isDirectUpdateCandidate)
         checkedCount = sparkleApps.count
         var found: [SparkleUpdate] = []
 
@@ -57,6 +57,13 @@ final class AppUpdatesStore {
             }
             .sorted { $0.appName.localizedCaseInsensitiveCompare($1.appName) == .orderedAscending }
         lastScan = Date()
+    }
+
+    /// Apps Brewer may update straight from their Sparkle feed. App Store and
+    /// Setapp editions are updated by their store, and their feeds (when they
+    /// keep one) point at the vendor's own, differently licensed build.
+    nonisolated static func isDirectUpdateCandidate(_ app: ScannedApp) -> Bool {
+        app.sparkleFeedURL != nil && app.shortVersion != nil && !app.hasMASReceipt && !app.isSetappApp
     }
 
     nonisolated static func check(_ app: ScannedApp) async -> SparkleUpdate? {

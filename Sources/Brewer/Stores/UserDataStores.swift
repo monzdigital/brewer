@@ -230,17 +230,34 @@ final class HistoryStore {
         load()
     }
 
+    /// Output is kept for this many of the most recent failed operations.
+    static let failedOutputsKept = 30
+    static let outputLinesKept = 300
+
     func record(_ operation: TaskConsole.Operation) {
+        let succeeded = operation.state == .succeeded
         let entry = HistoryEntry(
             date: operation.startedAt ?? operation.enqueuedAt,
             title: operation.title,
             command: operation.commandLine,
-            succeeded: operation.state == .succeeded,
-            durationSeconds: operation.duration
+            succeeded: succeeded,
+            durationSeconds: operation.duration,
+            output: succeeded ? nil : operation.lines.suffix(Self.outputLinesKept).map(\.text)
         )
         entries.insert(entry, at: 0)
         if entries.count > 500 { entries.removeLast(entries.count - 500) }
+        Self.trimStoredOutputs(&entries, keep: Self.failedOutputsKept)
         save()
+    }
+
+    /// Drops the stored output of all but the newest `keep` entries that have
+    /// one, so history.json stays small.
+    nonisolated static func trimStoredOutputs(_ entries: inout [HistoryEntry], keep: Int) {
+        var seen = 0
+        for index in entries.indices where entries[index].output != nil {
+            seen += 1
+            if seen > keep { entries[index].output = nil }
+        }
     }
 
     func clear() {

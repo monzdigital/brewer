@@ -69,11 +69,11 @@ private struct GeneralSettings: View {
 
             Divider().padding(.vertical, 4)
 
-            Toggle("SmartDelete - watch the Trash for deleted apps", isOn: Binding(
+            Toggle("SmartDelete - offer cleanup when you delete an app", isOn: Binding(
                 get: { app.uninstaller.smartDeleteEnabled },
                 set: { app.uninstaller.setSmartDelete($0) }
             ))
-            Text("When you trash an app the normal way, Brewer offers to clean up its leftover files too.")
+            Text("When an app disappears from Applications, Brewer offers to remove its leftover files too.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

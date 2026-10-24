@@ -103,7 +103,7 @@ final class AppState {
         didBootstrap = true
 
         NotificationManager.requestAuthorizationIfNeeded()
-        uninstaller.startTrashWatcherIfEnabled()
+        uninstaller.startWatcherIfEnabled()
         await packages.refresh()
         scheduler.visibleUpdates = { [weak self] in
             self?.packages(in: .updates) ?? []
@@ -114,7 +114,9 @@ final class AppState {
         }
         scheduler.start()
         Task { [weak self] in
-            await self?.installer.loadBackups()
+            // Applies the backup policy (one copy per version, N per app), which
+            // also clears duplicates left by older releases.
+            await self?.installer.settleBackups()
         }
 
         if UserDefaults.standard.bool(forKey: Prefs.checkOnLaunch) {
@@ -172,6 +174,19 @@ final class AppState {
     /// Count of updates not snoozed - used for sidebar and menu bar badges.
     var visibleUpdateCount: Int {
         packages(in: .updates).count
+    }
+
+    /// Homebrew support-tier warning for this Mac (Intel, Rosetta or Sonoma
+    /// under Homebrew 7), or nil when everything is fully supported.
+    var platformNotice: PlatformSupport.Notice? {
+        guard let version = packages.brewVersion else { return nil }
+        let environment = BrewEnvironment.current
+        return PlatformSupport.notice(
+            brewMajor: BrewClient.majorVersion(ofBrewVersionLine: version),
+            macOSMajor: ProcessInfo.processInfo.operatingSystemVersion.majorVersion,
+            appleSilicon: environment.isAppleSiliconMachine,
+            rosettaBrew: environment.isRosettaBrew
+        )
     }
 
     /// Updates currently hidden by a snooze.

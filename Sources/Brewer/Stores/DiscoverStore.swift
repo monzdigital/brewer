@@ -26,6 +26,11 @@ final class DiscoverStore {
         var version: String?
         var installs365d: Int?
         var homepage: String?
+        /// Homebrew can retire a curated pick at any time; the card says so
+        /// instead of offering an install that warns or fails.
+        var isDeprecated = false
+        var isDisabled = false
+        var retirementReason: String?
     }
 
     let categories: [DiscoverCategory] = DiscoverStore.catalog
@@ -54,6 +59,10 @@ final class DiscoverStore {
                 detail.version = decoded.latestVersion
                 detail.installs365d = decoded.installs365d
                 detail.homepage = decoded.homepage
+                detail.isDeprecated = decoded.deprecated ?? false
+                detail.isDisabled = decoded.disabled ?? false
+                detail.retirementReason = (decoded.disabled == true ? decoded.disable_reason : decoded.deprecation_reason)?
+                    .replacingOccurrences(of: "_", with: " ")
             }
             await MainActor.run {
                 self?.details[key] = detail
@@ -129,7 +138,7 @@ final class DiscoverStore {
             DiscoverItem(token: "firefox", kind: .cask, fallbackDesc: "Web browser from Mozilla"),
             DiscoverItem(token: "brave-browser", kind: .cask, fallbackDesc: "Web browser focusing on privacy"),
             DiscoverItem(token: "microsoft-edge", kind: .cask, fallbackDesc: "Web browser from Microsoft"),
-            DiscoverItem(token: "arc", kind: .cask, fallbackDesc: "Chromium-based browser")
+            DiscoverItem(token: "zen", kind: .cask, fallbackDesc: "Gecko based web browser")
         ]),
         DiscoverCategory(name: "Security", symbol: "lock.shield", items: [
             DiscoverItem(token: "1password", kind: .cask, fallbackDesc: "Password manager that keeps all passwords secure"),

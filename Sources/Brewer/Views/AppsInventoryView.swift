@@ -46,11 +46,21 @@ struct AppsInventoryView: View {
         }
     }
 
+    private var summary: String {
+        let inventory = app.inventory
+        var parts = ["\(inventory.apps.count) apps", "\(Format.bytes(inventory.totalBytes)) total"]
+        for source in AppSource.allCases {
+            let count = inventory.count(for: source)
+            if count > 0 { parts.append("\(count) \(source == .manual ? "manual" : source.rawValue)") }
+        }
+        return parts.joined(separator: " · ")
+    }
+
     private var header: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("All Applications").font(.title3.weight(.semibold))
-                Text("\(app.inventory.apps.count) apps · \(Format.bytes(app.inventory.totalBytes)) total · \(app.inventory.count(for: .homebrew)) Homebrew · \(app.inventory.count(for: .appStore)) App Store · \(app.inventory.count(for: .manual)) manual")
+                Text(summary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -82,6 +92,7 @@ extension AppSource {
         switch self {
         case .homebrew: return .green
         case .appStore: return .blue
+        case .setapp: return .purple
         case .sparkle: return .teal
         case .manual: return .secondary
         }

@@ -5,7 +5,13 @@ import SwiftUI
 struct HealthView: View {
     @Environment(AppState.self) private var app
 
-    private var issueCount: Int { app.health.doctorWarnings.count }
+    private var issueCount: Int { app.health.issueCount }
+
+    private var advisoryTileColor: Color {
+        if app.health.vulnsLastRun == nil { return .secondary }
+        if app.health.seriousAdvisoryCount > 0 { return .red }
+        return app.health.advisoryCount > 0 ? .orange : .green
+    }
     private var score: Int {
         app.health.healthScore(outdatedCount: app.packages.outdatedCount, issueCount: issueCount)
     }
@@ -50,6 +56,10 @@ struct HealthView: View {
                     .frame(width: 64, height: 64)
                 }
 
+                if let notice = app.platformNotice {
+                    PlatformNoticeCard(notice: notice)
+                }
+
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 12)], spacing: 12) {
                     StatTile(
                         value: "\(app.packages.outdatedCount)",
@@ -90,6 +100,18 @@ struct HealthView: View {
                         symbol: "stethoscope",
                         color: issueCount > 0 ? .yellow : .green
                     ) { app.selection = .diagnostics }
+
+                    if app.health.supportsStructuredDiagnostics {
+                        StatTile(
+                            value: app.health.vulnsLastRun == nil ? "-" : "\(app.health.advisoryCount)",
+                            title: "Advisories",
+                            subtitle: app.health.vulnsLastRun == nil
+                                ? "run a security scan"
+                                : "\(app.health.seriousAdvisoryCount) high or critical",
+                            symbol: "exclamationmark.shield",
+                            color: advisoryTileColor
+                        ) { app.selection = .diagnostics }
+                    }
 
                     StatTile(
                         value: "\(score)%",
@@ -135,6 +157,7 @@ struct HealthView: View {
         }
         .navigationTitle("Health")
         .task {
+            await app.health.detectBrewMajorIfNeeded()
             if app.health.lastRefreshed == nil {
                 await app.health.refreshMetrics()
             }
@@ -160,7 +183,13 @@ struct DiagnosticsView: View {
             VStack(alignment: .leading, spacing: 16) {
                 PaneHeader(title: "Diagnostics", subtitle: "Check system health, spot risky packages, and read brew doctor without the wall of text.")
 
+                if let notice = app.platformNotice {
+                    PlatformNoticeCard(notice: notice)
+                }
                 securityCard
+                if app.health.supportsStructuredDiagnostics {
+                    advisoriesCard
+                }
                 orphansCard
                 doctorCard
             }
@@ -168,10 +197,71 @@ struct DiagnosticsView: View {
         }
         .navigationTitle("Diagnostics")
         .task {
+            await app.health.detectBrewMajorIfNeeded()
             if app.health.lastRefreshed == nil {
                 await app.health.refreshMetrics()
             }
         }
+    }
+
+    // MARK: Security advisories (brew vulns)
+
+    private var advisoriesCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Security Advisories", systemImage: "exclamationmark.shield")
+                    .font(.headline)
+                Spacer()
+                if let last = app.health.vulnsLastRun {
+                    Text("Scanned \(Format.relative(last))")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                Button {
+                    Task { await app.health.runVulnerabilityScan() }
+                } label: {
+                    if app.health.vulnsRunning {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text("Scanning…")
+                        }
+                    } else {
+                        Label(app.health.vulnsLastRun == nil ? "Scan" : "Scan Again", systemImage: "magnifyingglass")
+                    }
+                }
+                .disabled(app.health.vulnsRunning)
+            }
+            Text("Checks installed formulae for known vulnerabilities with brew vulns. Formula names and versions are sent to OSV.dev; issues Homebrew already patched are not counted.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if let error = app.health.vulnsError {
+                Label(error, systemImage: "xmark.octagon")
+                    .font(.callout)
+                    .foregroundStyle(.red)
+            } else if app.health.vulnsLastRun != nil {
+                if app.health.vulnerablePackages.isEmpty {
+                    Label("No known vulnerabilities in \(app.health.vulnsScannedCount.map(String.init) ?? "the") scanned formulae", systemImage: "checkmark.circle.fill")
+                        .font(.callout)
+                        .foregroundStyle(.green)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                } else {
+                    Text("\(app.health.advisoryCount) advisor\(app.health.advisoryCount == 1 ? "y" : "ies") in \(app.health.vulnerablePackages.count) formula\(app.health.vulnerablePackages.count == 1 ? "" : "e")")
+                        .font(.callout.weight(.semibold))
+                    ForEach(app.health.vulnerablePackages) { package in
+                        VulnerablePackageRow(package: package)
+                    }
+                }
+                if !app.health.vulnsUnscanned.isEmpty {
+                    Text("Not scanned: \(app.health.vulnsUnscanned.keys.sorted().joined(separator: ", ")) - their taps are not trusted.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .cardStyle()
     }
 
     private var securityCard: some View {
@@ -294,7 +384,23 @@ struct DiagnosticsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            if let output = app.health.doctorRaw {
+            if app.health.doctorIsStructured {
+                if app.health.doctorFindings.isEmpty {
+                    Label("Your system is ready to brew.", systemImage: "checkmark.circle.fill")
+                        .font(.callout)
+                        .foregroundStyle(.green)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                } else {
+                    Text("\(app.health.doctorFindings.count) issue\(app.health.doctorFindings.count == 1 ? "" : "s") found")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.yellow)
+                    ForEach(app.health.doctorFindings) { finding in
+                        DoctorFindingRow(finding: finding)
+                    }
+                }
+            } else if let output = app.health.doctorRaw {
                 if !app.health.doctorWarnings.isEmpty {
                     Text("\(app.health.doctorWarnings.count) issue\(app.health.doctorWarnings.count == 1 ? "" : "s") found")
                         .font(.callout.weight(.semibold))
@@ -305,6 +411,189 @@ struct DiagnosticsView: View {
             }
         }
         .cardStyle()
+    }
+}
+
+// MARK: - Diagnostics building blocks
+
+/// Homebrew support-tier warning (Intel, Rosetta or Sonoma under Homebrew 7).
+struct PlatformNoticeCard: View {
+    let notice: PlatformSupport.Notice
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(notice.title, systemImage: "exclamationmark.triangle.fill")
+                .font(.callout.weight(.semibold))
+            Text(notice.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardStyle(tint: .orange)
+    }
+}
+
+private struct DoctorFindingRow: View {
+    @Environment(AppState.self) private var app
+    let finding: DoctorFinding
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(finding.title, systemImage: "exclamationmark.triangle.fill")
+                .font(.callout.weight(.medium))
+                .foregroundStyle(.primary)
+                .labelStyle(DoctorTitleLabelStyle())
+            if let details = finding.details {
+                Text(details)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .lineLimit(6)
+            }
+            if !finding.affects.isEmpty {
+                FlowLayout(spacing: 4) {
+                    ForEach(finding.affects, id: \.self) { name in
+                        TinyBadge(text: name, color: .yellow)
+                    }
+                }
+            }
+            if let remediation = finding.remediation, remediation != finding.details {
+                Text(remediation)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .lineLimit(4)
+            }
+            ForEach(finding.commands, id: \.self) { command in
+                HStack(spacing: 8) {
+                    Text(command)
+                        .font(.system(size: 11, design: .monospaced))
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(command, forType: .string)
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Copy command")
+                    if HealthStore.brewArguments(forRemediation: command) != nil {
+                        Button("Run") {
+                            Task { await app.health.runRemediation(command) }
+                        }
+                        .controlSize(.small)
+                        .help("Run it in the console, then re-check")
+                    }
+                }
+                .padding(8)
+                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
+            }
+            ForEach(finding.links, id: \.self) { url in
+                Link("Learn more", destination: url)
+                    .font(.caption)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.yellow.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+/// Keeps the warning icon yellow while the title text stays primary.
+private struct DoctorTitleLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            configuration.icon.foregroundStyle(.yellow)
+            configuration.title
+        }
+    }
+}
+
+private struct VulnerablePackageRow: View {
+    @Environment(AppState.self) private var app
+    let package: VulnerablePackage
+    @State private var expanded = false
+
+    private var installed: BrewPackage? {
+        app.packages.package(id: BrewPackage.makeID(kind: .formula, name: package.formula))
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $expanded) {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(package.advisories) { advisory in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        SeverityBadge(severity: advisory.severity)
+                        VStack(alignment: .leading, spacing: 1) {
+                            if let url = advisory.url {
+                                Link(advisory.id, destination: url)
+                                    .font(.caption.weight(.medium))
+                            } else {
+                                Text(advisory.id).font(.caption.weight(.medium))
+                            }
+                            Text(advisory.summary.isEmpty ? "No summary published." : advisory.summary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                        Spacer()
+                        Text(advisory.hasUpstreamFix ? "fixed upstream" : "no fix yet")
+                            .font(.caption2)
+                            .foregroundStyle(advisory.hasUpstreamFix ? .green : .secondary)
+                    }
+                }
+                if package.patchedCount > 0 {
+                    Text("Homebrew already patched \(package.patchedCount) other advisor\(package.patchedCount == 1 ? "y" : "ies") for this formula.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.top, 4)
+        } label: {
+            HStack(spacing: 8) {
+                SeverityBadge(severity: package.highestSeverity)
+                Text(package.formula).fontWeight(.medium)
+                if let version = package.version {
+                    Text(version).font(.caption).foregroundStyle(.secondary)
+                }
+                TinyBadge(text: "\(package.advisories.count) advisor\(package.advisories.count == 1 ? "y" : "ies")", color: .secondary)
+                Spacer()
+                if let installed, installed.isOutdated {
+                    if app.console.isPending(subject: installed.id) {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Button("Upgrade to \(installed.latestVersion ?? "latest")") {
+                            Task { await app.packages.upgrade([installed]) }
+                        }
+                        .controlSize(.small)
+                        .help("A newer version may contain the fix")
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+private struct SeverityBadge: View {
+    let severity: Advisory.Severity
+
+    private var color: Color {
+        switch severity {
+        case .critical: return .red
+        case .high: return .orange
+        case .medium: return .yellow
+        case .low: return .blue
+        case .unknown: return .secondary
+        }
+    }
+
+    var body: some View {
+        TinyBadge(text: severity.label, color: color)
     }
 }
 
@@ -502,13 +791,20 @@ struct DuplicatesView: View {
 
 struct HistoryView: View {
     @Environment(AppState.self) private var app
+    @State private var selection = Set<HistoryEntry.ID>()
+    @State private var outputEntry: HistoryEntry?
+
+    private func entry(_ id: HistoryEntry.ID?) -> HistoryEntry? {
+        guard let id else { return nil }
+        return app.history.entries.first { $0.id == id }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("History").font(.title3.weight(.semibold))
-                    Text("Every command Brewer ran on your behalf.")
+                    Text("Every command Brewer ran on your behalf. Double-click a failed one to read its output.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -528,12 +824,20 @@ struct HistoryView: View {
                     description: Text("Install, upgrade and maintenance operations will be recorded here."))
                 Spacer()
             } else {
-                Table(app.history.entries) {
+                Table(app.history.entries, selection: $selection) {
                     TableColumn("Status") { entry in
-                        Image(systemName: entry.succeeded ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundStyle(entry.succeeded ? .green : .red)
+                        HStack(spacing: 4) {
+                            Image(systemName: entry.succeeded ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                .foregroundStyle(entry.succeeded ? .green : .red)
+                            if entry.output != nil {
+                                Image(systemName: "doc.plaintext")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .help("Output saved - double-click to read it")
+                            }
+                        }
                     }
-                    .width(44)
+                    .width(52)
                     TableColumn("Date") { entry in
                         Text(entry.date.formatted(date: .abbreviated, time: .shortened))
                     }
@@ -554,8 +858,67 @@ struct HistoryView: View {
                     }
                     .width(70)
                 }
+                .contextMenu(forSelectionType: HistoryEntry.ID.self) { ids in
+                    if let entry = entry(ids.first) {
+                        if entry.output != nil {
+                            Button("Show Output") { outputEntry = entry }
+                        }
+                        Button("Copy Command") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(entry.command, forType: .string)
+                        }
+                    }
+                } primaryAction: { ids in
+                    if let entry = entry(ids.first), entry.output != nil {
+                        outputEntry = entry
+                    }
+                }
             }
         }
         .navigationTitle("History")
+        .sheet(item: $outputEntry) { entry in
+            HistoryOutputSheet(entry: entry)
+        }
+    }
+}
+
+private struct HistoryOutputSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let entry: HistoryEntry
+
+    private var text: String { (entry.output ?? []).joined(separator: "\n") }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Label(entry.title, systemImage: entry.succeeded ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .font(.headline)
+                        .foregroundStyle(entry.succeeded ? Color.primary : Color.red)
+                    Text("$ \(entry.command)")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .textSelection(.enabled)
+                    Text("\(entry.date.formatted(date: .abbreviated, time: .standard)) · \(Format.duration(entry.durationSeconds))")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer()
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(text, forType: .string)
+                } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding(12)
+            Divider()
+            OutputTextView(text: text.isEmpty ? "(no output was produced)" : text)
+                .padding(10)
+        }
+        .frame(width: 720, height: 480)
     }
 }

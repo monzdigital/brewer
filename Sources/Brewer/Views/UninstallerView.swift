@@ -38,8 +38,8 @@ struct UninstallerView: View {
                 smartDeleteCard
                     .frame(maxWidth: 560)
 
-                if !app.uninstaller.recentlyTrashed.isEmpty {
-                    recentlyTrashedCard
+                if !app.uninstaller.recentlyRemoved.isEmpty {
+                    recentlyRemovedCard
                         .frame(maxWidth: 560)
                 }
             }
@@ -92,7 +92,7 @@ struct UninstallerView: View {
                 .foregroundStyle(.purple)
             VStack(alignment: .leading, spacing: 3) {
                 Text("SmartDelete").font(.callout.weight(.semibold))
-                Text("Watch the Trash in the background: when you delete an app the normal way, Brewer offers to clean up its leftovers too.")
+                Text("Watch your Applications folders in the background: when you delete an app the normal way, Brewer offers to clean up the files it left behind. No special permissions needed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -107,18 +107,26 @@ struct UninstallerView: View {
         .cardStyle()
     }
 
-    private var recentlyTrashedCard: some View {
+    private var recentlyRemovedCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Recently moved to Trash")
+            Text("Recently removed apps")
                 .font(.callout.weight(.semibold))
-            ForEach(app.uninstaller.recentlyTrashed) { trashedApp in
+            ForEach(app.uninstaller.recentlyRemoved) { removedApp in
                 HStack(spacing: 8) {
-                    Image(nsImage: AppIconCache.shared.icon(forPath: trashedApp.url.path))
-                        .resizable().frame(width: 22, height: 22)
-                    Text(trashedApp.name).font(.callout)
+                    Image(systemName: "app.dashed")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(removedApp.name).font(.callout)
+                        Text(removedApp.bundleID ?? removedApp.url.path)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
                     Spacer()
                     Button("Clean Leftovers") {
-                        Task { await app.uninstaller.beginReview(appURL: trashedApp.url) }
+                        Task { await app.uninstaller.beginReview(app: removedApp) }
                     }
                     .controlSize(.small)
                 }
@@ -196,7 +204,7 @@ struct UninstallerView: View {
                         TinyBadge(text: "running - will be quit", color: .orange)
                     }
                     if !review.appStillOnDisk || review.app.url.path.contains("/.Trash/") {
-                        TinyBadge(text: "already in Trash", color: .secondary)
+                        TinyBadge(text: "app already removed", color: .secondary)
                     }
                 }
                 Text(review.app.url.path)

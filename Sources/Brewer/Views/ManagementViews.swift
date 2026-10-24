@@ -78,7 +78,7 @@ struct TapsView: View {
             Button("Cancel", role: .cancel) { newTapName = "" }
         } message: {
             Text(app.taps.supportsTrust
-                 ? "Enter the tap in user/repo form, e.g. supabase/tap. Homebrew 6 only installs packages from taps you trust - choose \"Add & Trust\" if you know the publisher."
+                 ? "Enter the tap in user/repo form, e.g. supabase/tap. Homebrew only installs packages from taps you trust - choose \"Add & Trust\" if you know the publisher."
                  : "Enter the tap in user/repo form, e.g. supabase/tap")
         }
         .confirmationDialog(

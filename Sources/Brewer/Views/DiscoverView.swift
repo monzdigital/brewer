@@ -111,6 +111,13 @@ private struct DiscoverCard: View {
                         .lineLimit(1)
                     TinyBadge(text: item.kind == .formula ? "CLI" : "App",
                               color: item.kind == .formula ? .green : .blue)
+                    if detail?.isDisabled == true {
+                        TinyBadge(text: "disabled", color: .red)
+                            .help(detail?.retirementReason.map { "Disabled by Homebrew: \($0)" } ?? "Disabled by Homebrew")
+                    } else if detail?.isDeprecated == true {
+                        TinyBadge(text: "deprecated", color: .orange)
+                            .help(detail?.retirementReason.map { "Deprecated by Homebrew: \($0)" } ?? "Deprecated by Homebrew")
+                    }
                 }
                 Text(detail?.desc ?? item.fallbackDesc)
                     .font(.caption)
@@ -133,6 +140,11 @@ private struct DiscoverCard: View {
                     .padding(.top, 8)
             } else if app.console.isPending(subject: BrewPackage.makeID(kind: item.kind, name: item.token)) {
                 Label("Queued", systemImage: "clock")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 8)
+            } else if detail?.isDisabled == true {
+                Text("Unavailable")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.top, 8)

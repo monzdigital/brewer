@@ -386,7 +386,9 @@ struct AppleSiliconView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    if BrewEnvironment.current.isRosettaBrew {
+                    if let notice = app.platformNotice, notice.kind != .sonoma {
+                        PlatformNoticeCard(notice: notice)
+                    } else if BrewEnvironment.current.isRosettaBrew {
                         VStack(alignment: .leading, spacing: 4) {
                             Label("Homebrew is running under Rosetta", systemImage: "exclamationmark.triangle.fill")
                                 .font(.callout.weight(.semibold))

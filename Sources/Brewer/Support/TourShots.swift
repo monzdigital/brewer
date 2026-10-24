@@ -61,8 +61,9 @@ enum TourShots {
             await app.health.refreshMetrics()
             await shoot(nil, "07-health", wait: 1)
 
-            // Diagnostics with real doctor results on the page.
+            // Diagnostics with real doctor results and a security scan on the page.
             await app.health.runDoctor()
+            await app.health.runVulnerabilityScan()
             await shoot(.diagnostics, "08-diagnostics", wait: 1.5)
 
             await shoot(.services, "09-services", wait: 3)

@@ -114,6 +114,20 @@ struct BrewClient: Sendable {
         return (try? JSONDecoder().decode([TapInfoJSON].self, from: data))?.first
     }
 
+    /// Every installed tap in one call (Homebrew 7 collects these concurrently);
+    /// includes the `trusted` flag on Homebrew 7+.
+    func installedTapsInfo() async -> [TapInfoJSON]? {
+        let result = await Shell.runBrew(["tap-info", "--installed", "--json=v1"])
+        guard result.succeeded, let data = result.stdout.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode([TapInfoJSON].self, from: data)
+    }
+
+    /// "Homebrew 7.0.10" -> 7; 0 when brew can't be queried.
+    func brewMajorVersion() async -> Int {
+        guard let version = await brewVersion() else { return 0 }
+        return Self.majorVersion(ofBrewVersionLine: version)
+    }
+
     /// Homebrew 6 only loads formulae/casks from third-party taps the user has
     /// explicitly trusted (`brew trust --tap`).
     func supportsTapTrust() async -> Bool {
@@ -142,6 +156,27 @@ struct BrewClient: Sendable {
 
     func doctor() async -> ShellResult {
         await Shell.runBrew(["doctor"])
+    }
+
+    /// Structured doctor findings (Homebrew 7+). nil when unsupported or
+    /// unreadable, so callers fall back to the text output. doctor exits 1
+    /// whenever it has findings, so the payload decides, not the exit code.
+    func doctorReport() async -> DoctorReportJSON? {
+        let result = await Shell.runBrew(["doctor", "--json"])
+        guard let data = result.stdout.data(using: .utf8), !data.isEmpty else { return nil }
+        return try? JSONDecoder().decode(DoctorReportJSON.self, from: data)
+    }
+
+    /// `brew vulns --json` (Homebrew 7+): checks installed formulae against
+    /// OSV.dev. It exits 1 when it finds anything, so the payload decides.
+    func vulnerabilityReport() async -> (report: VulnsReportJSON?, error: String?) {
+        let result = await Shell.runBrew(["vulns", "--json"])
+        if let data = result.stdout.data(using: .utf8), !data.isEmpty,
+           let report = try? JSONDecoder().decode(VulnsReportJSON.self, from: data) {
+            return (report, nil)
+        }
+        let firstError = result.stderr.split(separator: "\n").first { $0.hasPrefix("Error") }.map(String.init)
+        return (nil, firstError ?? "brew vulns failed (exit \(result.exitCode)).")
     }
 
     func cleanupDryRun() async -> CleanupReport {

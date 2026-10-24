@@ -7,10 +7,26 @@ import Observation
 @Observable
 final class HealthStore {
 
+    // brew doctor: structured findings on Homebrew 7+, parsed text otherwise.
     var doctorRaw: String?
     var doctorWarnings: [String] = []
+    var doctorFindings: [DoctorFinding] = []
+    var doctorIsStructured = false
     var doctorRunning = false
     var doctorLastRun: Date?
+
+    // brew vulns (Homebrew 7+). User-initiated: it sends installed formula
+    // names and versions to OSV.dev.
+    var vulnerablePackages: [VulnerablePackage] = []
+    var vulnsRunning = false
+    var vulnsLastRun: Date?
+    var vulnsError: String?
+    var vulnsScannedCount: Int?
+    var vulnsComplete = true
+    var vulnsUnscanned: [String: String] = [:]
+
+    /// Homebrew's major version, detected on first use (0 = unknown).
+    var brewMajor = 0
 
     var cachePath: String = ""
     var cacheBytes: Int64?
@@ -48,18 +64,136 @@ final class HealthStore {
 
     // MARK: Doctor
 
+    var supportsStructuredDiagnostics: Bool { brewMajor >= 7 }
+
+    /// Number of doctor issues, whichever output format produced them.
+    var issueCount: Int { doctorIsStructured ? doctorFindings.count : doctorWarnings.count }
+
+    func detectBrewMajorIfNeeded() async {
+        if brewMajor == 0 { brewMajor = await client.brewMajorVersion() }
+    }
+
     func runDoctor() async {
         guard !doctorRunning else { return }
         doctorRunning = true
         defer { doctorRunning = false }
-        let result = await client.doctor()
-        var text = result.combined
-        if text.isEmpty {
-            text = result.succeeded ? "Your system is ready to brew." : "brew doctor exited with code \(result.exitCode)."
+        await detectBrewMajorIfNeeded()
+
+        if supportsStructuredDiagnostics, let report = await client.doctorReport() {
+            doctorFindings = Self.findings(from: report)
+            doctorWarnings = doctorFindings.map(\.title)
+            doctorIsStructured = true
+            doctorRaw = nil
+        } else {
+            let result = await client.doctor()
+            var text = result.combined
+            if text.isEmpty {
+                text = result.succeeded ? "Your system is ready to brew." : "brew doctor exited with code \(result.exitCode)."
+            }
+            doctorRaw = text
+            doctorWarnings = Self.parseWarnings(from: text)
+            doctorFindings = []
+            doctorIsStructured = false
         }
-        doctorRaw = text
-        doctorWarnings = Self.parseWarnings(from: text)
         doctorLastRun = Date()
+    }
+
+    nonisolated static func findings(from report: DoctorReportJSON) -> [DoctorFinding] {
+        report.findings.enumerated().compactMap { index, finding in
+            let text = (finding.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            let parts = text.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
+            let title = parts.first.map { $0.trimmingCharacters(in: .whitespaces) } ?? text
+            let details = parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespacesAndNewlines) : ""
+            let remediation = (finding.remediation?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return DoctorFinding(
+                id: index,
+                title: title,
+                details: details.isEmpty ? nil : details,
+                affects: finding.affects?.values ?? [],
+                remediation: remediation.isEmpty ? nil : remediation,
+                commands: (finding.remediation?.commands?.values ?? []).filter { !$0.isEmpty },
+                links: (finding.links?.values ?? []).compactMap(URL.init(string:))
+            )
+        }
+    }
+
+    /// Arguments for a doctor remediation command Brewer may run for the user:
+    /// only plain `brew …` invocations, never anything a shell would interpret.
+    nonisolated static func brewArguments(forRemediation command: String) -> [String]? {
+        let trimmed = command.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("brew ") else { return nil }
+        let shellSyntax = CharacterSet(charactersIn: ";|&$`<>()\\\"'*?{}[]~!#\n")
+        guard trimmed.rangeOfCharacter(from: shellSyntax) == nil else { return nil }
+        let parts = trimmed.split(separator: " ").map(String.init)
+        guard parts.count >= 2 else { return nil }
+        return Array(parts.dropFirst())
+    }
+
+    func runRemediation(_ command: String) async {
+        guard let arguments = Self.brewArguments(forRemediation: command) else { return }
+        let title = command.count <= 48 ? "Doctor fix: \(command)" : "Doctor fix: \(command.prefix(45))…"
+        await console.runBrew(title: title, arguments: arguments)
+        await runDoctor()
+    }
+
+    // MARK: Vulnerabilities (brew vulns)
+
+    var advisoryCount: Int {
+        vulnerablePackages.reduce(0) { $0 + $1.advisories.count }
+    }
+
+    var seriousAdvisoryCount: Int {
+        vulnerablePackages.reduce(0) { total, package in
+            total + package.advisories.filter { $0.severity >= .high }.count
+        }
+    }
+
+    func runVulnerabilityScan() async {
+        guard !vulnsRunning else { return }
+        await detectBrewMajorIfNeeded()
+        guard supportsStructuredDiagnostics else { return }
+        vulnsRunning = true
+        defer { vulnsRunning = false }
+
+        let (report, error) = await client.vulnerabilityReport()
+        if let report {
+            vulnerablePackages = Self.vulnerablePackages(from: report)
+            vulnsScannedCount = report.checked
+            vulnsComplete = report.complete ?? true
+            vulnsUnscanned = report.unscanned_formulae ?? [:]
+            vulnsError = nil
+        } else {
+            vulnsError = error
+        }
+        vulnsLastRun = Date()
+    }
+
+    nonisolated static func vulnerablePackages(from report: VulnsReportJSON) -> [VulnerablePackage] {
+        report.findings.compactMap { finding -> VulnerablePackage? in
+            let advisories = (finding.vulnerabilities ?? [])
+                .map { vulnerability in
+                    Advisory(
+                        id: vulnerability.id,
+                        severity: Advisory.Severity(raw: vulnerability.severity),
+                        summary: vulnerability.summary ?? "",
+                        hasUpstreamFix: !(vulnerability.fixed_versions ?? []).isEmpty
+                    )
+                }
+                .sorted { $0.severity > $1.severity }
+            guard !advisories.isEmpty else { return nil }
+            return VulnerablePackage(
+                formula: finding.formula,
+                version: finding.version,
+                advisories: advisories,
+                patchedCount: finding.patched?.count ?? 0
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.highestSeverity != rhs.highestSeverity { return lhs.highestSeverity > rhs.highestSeverity }
+            if lhs.advisories.count != rhs.advisories.count { return lhs.advisories.count > rhs.advisories.count }
+            return lhs.formula < rhs.formula
+        }
     }
 
     nonisolated static func parseWarnings(from output: String) -> [String] {
@@ -105,6 +239,10 @@ final class HealthStore {
         score -= min(25.0, Double(issueCount) * 4.0)
         score -= min(15.0, Double(orphans?.count ?? 0) * 2.0)
         if let cacheBytes, cacheBytes > 2_000_000_000 { score -= 10 }
+        // Known vulnerabilities from the last scan: serious ones weigh more.
+        let serious = Double(seriousAdvisoryCount)
+        let other = Double(advisoryCount - seriousAdvisoryCount)
+        score -= min(20.0, serious * 5.0 + other * 1.0)
         return max(0, min(100, Int(score.rounded())))
     }
 }

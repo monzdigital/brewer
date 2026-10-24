@@ -137,6 +137,72 @@ struct HistoryEntry: Codable, Identifiable {
     var command: String
     var succeeded: Bool
     var durationSeconds: Double
+    /// Last lines of output, kept for failed or cancelled operations so they can
+    /// still be diagnosed after the console was cleared or the app quit.
+    var output: [String]?
+}
+
+// MARK: - Diagnostics (Homebrew 7 structured doctor and vulnerability scan)
+
+struct DoctorFinding: Identifiable, Hashable {
+    let id: Int
+    let title: String
+    let details: String?
+    let affects: [String]
+    let remediation: String?
+    let commands: [String]
+    let links: [URL]
+}
+
+struct Advisory: Identifiable, Hashable {
+    enum Severity: Int, Comparable, Hashable {
+        case unknown = 0, low, medium, high, critical
+
+        init(raw: String?) {
+            switch raw?.uppercased() {
+            case "CRITICAL": self = .critical
+            case "HIGH": self = .high
+            case "MEDIUM", "MODERATE": self = .medium
+            case "LOW": self = .low
+            default: self = .unknown
+            }
+        }
+
+        var label: String {
+            switch self {
+            case .critical: return "Critical"
+            case .high: return "High"
+            case .medium: return "Medium"
+            case .low: return "Low"
+            case .unknown: return "Unrated"
+            }
+        }
+
+        static func < (lhs: Severity, rhs: Severity) -> Bool { lhs.rawValue < rhs.rawValue }
+    }
+
+    let id: String
+    let severity: Severity
+    let summary: String
+    let hasUpstreamFix: Bool
+
+    var url: URL? {
+        id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)
+            .flatMap { URL(string: "https://osv.dev/vulnerability/\($0)") }
+    }
+}
+
+struct VulnerablePackage: Identifiable, Hashable {
+    var id: String { formula }
+    let formula: String
+    let version: String?
+    let advisories: [Advisory]
+    /// Advisories Homebrew has already fixed with a backported patch.
+    let patchedCount: Int
+
+    var highestSeverity: Advisory.Severity {
+        advisories.map(\.severity).max() ?? .unknown
+    }
 }
 
 // MARK: - User metadata
@@ -186,6 +252,13 @@ struct ScannedApp: Identifiable, Hashable {
 
     /// Apple's own software (never adopt, never uninstall).
     var isAppleApp: Bool { bundleID?.hasPrefix("com.apple.") ?? false }
+
+    /// Setapp editions keep the vendor's regular update feed in their
+    /// Info.plist, but Setapp updates them itself - replacing one with the
+    /// vendor's build would swap in an unlicensed or trial edition.
+    var isSetappApp: Bool {
+        (bundleID?.lowercased().hasSuffix("-setapp") ?? false) || url.path.contains("/Applications/Setapp/")
+    }
 
     /// True for apps sitting directly in /Applications or ~/Applications
     /// (the only locations `brew install --adopt` can take over).
@@ -247,8 +320,17 @@ struct SparkleUpdate: Identifiable, Hashable {
 enum AppSource: String, CaseIterable, Hashable {
     case homebrew = "Homebrew"
     case appStore = "App Store"
+    case setapp = "Setapp"
     case sparkle = "Sparkle"
     case manual = "Manual"
+
+    /// Install source for an app that no Homebrew cask owns.
+    static func detect(for app: ScannedApp) -> AppSource {
+        if app.hasMASReceipt { return .appStore }
+        if app.isSetappApp { return .setapp }
+        if app.sparkleFeedURL != nil { return .sparkle }
+        return .manual
+    }
 }
 
 struct InventoryApp: Identifiable, Hashable {

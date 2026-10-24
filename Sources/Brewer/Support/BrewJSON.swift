@@ -212,6 +212,76 @@ struct TapInfoJSON: Decodable {
     var cask_tokens: [String]?
     var path: String?
     var remote: String?
+    /// Homebrew 7+: whether `brew trust` lets Homebrew load this tap.
+    var trusted: Bool?
+}
+
+// MARK: - brew doctor --json (Homebrew 7+)
+
+struct DoctorReportJSON: Decodable {
+    var tier: Int?
+    var findings: [DoctorFindingJSON]
+
+    enum CodingKeys: String, CodingKey { case tier, findings }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        tier = try? container.decodeIfPresent(Int.self, forKey: .tier)
+        // `findings` is required: a payload without it is not a doctor report,
+        // and the caller falls back to the text output instead of "no issues".
+        findings = try container.decode([SafeDecodable<DoctorFindingJSON>].self, forKey: .findings).compactMap(\.value)
+    }
+}
+
+struct DoctorFindingJSON: Decodable {
+    var text: String?
+    var tier: Int?
+    var affects: LenientStringArray?
+    var links: LenientStringArray?
+    var remediation: DoctorRemediationJSON?
+}
+
+struct DoctorRemediationJSON: Decodable {
+    var commands: LenientStringArray?
+    var text: String?
+}
+
+// MARK: - brew vulns --json (Homebrew 7+)
+
+struct VulnsReportJSON: Decodable {
+    var checked: Int?
+    var complete: Bool?
+    var findings: [VulnFindingJSON]
+    var skipped_formulae: [String]?
+    var unscanned_formulae: [String: String]?
+
+    enum CodingKeys: String, CodingKey { case checked, complete, findings, skipped_formulae, unscanned_formulae }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        checked = try? container.decodeIfPresent(Int.self, forKey: .checked)
+        complete = try? container.decodeIfPresent(Bool.self, forKey: .complete)
+        findings = try container.decode([SafeDecodable<VulnFindingJSON>].self, forKey: .findings).compactMap(\.value)
+        skipped_formulae = try? container.decodeIfPresent([String].self, forKey: .skipped_formulae)
+        unscanned_formulae = try? container.decodeIfPresent([String: String].self, forKey: .unscanned_formulae)
+    }
+}
+
+struct VulnFindingJSON: Decodable {
+    var formula: String
+    var version: String?
+    var repo_url: String?
+    var vulnerabilities: [VulnerabilityJSON]?
+    /// Advisories Homebrew already fixed with a backported patch.
+    var patched: [VulnerabilityJSON]?
+}
+
+struct VulnerabilityJSON: Decodable {
+    var id: String
+    var severity: String?
+    var summary: String?
+    var aliases: [String]?
+    var fixed_versions: [String]?
 }
 
 // MARK: - formulae.brew.sh API
@@ -224,6 +294,10 @@ struct ApiPackageJSON: Decodable {
     var version: String?
     var versions: VersionsJSON?
     var analytics: ApiAnalyticsJSON?
+    var deprecated: Bool?
+    var deprecation_reason: String?
+    var disabled: Bool?
+    var disable_reason: String?
 
     var installs365d: Int? {
         analytics?.install?["365d"]?.values.first
