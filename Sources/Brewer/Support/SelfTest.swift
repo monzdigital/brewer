@@ -378,6 +378,24 @@ enum SelfTestRunner {
         check("askpass helper installs", askpass != nil
               && FileManager.default.isExecutableFile(atPath: askpass ?? ""),
               detail: askpass ?? "-")
+        let helperText = askpass.flatMap { try? String(contentsOfFile: $0, encoding: .utf8) } ?? ""
+        check("askpass dialog names the operation, comes to front and marks the wait",
+              helperText.contains("askpass-context.txt") && helperText.contains("-e 'activate'")
+              && helperText.contains("askpass.waiting") && helperText.contains("trap ")
+              && helperText.contains("with hidden answer"))
+        // The AppleScript must compile (checked without showing the dialog).
+        let appleScriptLines = helperText.split(separator: "\n")
+            .compactMap { line -> String? in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard trimmed.hasPrefix("-e '") else { return nil }
+                return String(trimmed.dropFirst(4).prefix { $0 != "'" })
+            }
+        let compiled = FileManager.default.temporaryDirectory.appendingPathComponent("brewer-askpass-\(UUID().uuidString).scpt")
+        let compile = await Shell.run("/usr/bin/osacompile",
+                                      ["-o", compiled.path] + appleScriptLines.flatMap { ["-e", $0] })
+        try? FileManager.default.removeItem(at: compiled)
+        check("askpass AppleScript compiles", compile.succeeded && appleScriptLines.count >= 6,
+              detail: compile.succeeded ? "\(appleScriptLines.count) lines" : compile.stderr)
 
         return failures
     }

@@ -216,9 +216,19 @@ struct ConsolePanel: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
         case .running:
-            Label("Running…", systemImage: "circle.dotted")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.blue)
+            if app.console.isWaitingForPassword {
+                HStack(spacing: 8) {
+                    Label("Waiting for your Mac login password", systemImage: "key.fill")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.orange)
+                    Button("Show Dialog") { AskPass.bringDialogToFront() }
+                        .controlSize(.small)
+                }
+            } else {
+                Label("Running…", systemImage: "circle.dotted")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.blue)
+            }
         case .succeeded:
             Label("Succeeded", systemImage: "checkmark.circle.fill")
                 .font(.caption.weight(.medium))

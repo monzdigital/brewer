@@ -56,14 +56,13 @@ enum TourShots {
             await shoot(.appUpdates, "05-appupdates", wait: 3)
             await shoot(.uninstaller, "06-uninstaller", wait: 1.5)
 
-            // Health needs its metrics loaded.
+            // Health and Diagnostics with real metrics, doctor findings and a
+            // security scan loaded first, so every tile has a value.
             app.selection = .health
             await app.health.refreshMetrics()
-            await shoot(nil, "07-health", wait: 1)
-
-            // Diagnostics with real doctor results and a security scan on the page.
             await app.health.runDoctor()
             await app.health.runVulnerabilityScan()
+            await shoot(nil, "07-health", wait: 1)
             await shoot(.diagnostics, "08-diagnostics", wait: 1.5)
 
             await shoot(.services, "09-services", wait: 3)

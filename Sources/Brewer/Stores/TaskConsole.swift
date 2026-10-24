@@ -50,12 +50,39 @@ final class TaskConsole {
     var operations: [Operation] = []
     var selectedOperationID: UUID?
     var isPresented = false
+    /// True while the running operation's sudo password dialog is on screen.
+    var isWaitingForPassword = false
 
     var onFinished: ((Operation) -> Void)?
 
     private let queue = SerialQueue()
     private var handles: [UUID: ShellHandle] = [:]
     private var cancelledIDs: Set<UUID> = []
+    private var passwordWatch: Task<Void, Never>?
+
+    init() {
+        AskPass.clearStaleMarker()
+    }
+
+    /// Polls the askpass helper's marker while an operation runs, so the UI can
+    /// say why nothing is happening and offer to bring the dialog back up.
+    private func startPasswordWatch(for title: String) {
+        AskPass.setContext(title)
+        passwordWatch?.cancel()
+        passwordWatch = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                let waiting = AskPass.isWaitingForPassword
+                if self?.isWaitingForPassword != waiting { self?.isWaitingForPassword = waiting }
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+        }
+    }
+
+    private func stopPasswordWatch() {
+        passwordWatch?.cancel()
+        passwordWatch = nil
+        isWaitingForPassword = false
+    }
 
     var runningOperation: Operation? {
         operations.last { $0.state == .running }
@@ -147,6 +174,7 @@ final class TaskConsole {
             await MainActor.run {
                 operation.state = .running
                 operation.startedAt = Date()
+                self?.startPasswordWatch(for: operation.title)
             }
             // Work that must happen right before execution (e.g. quitting an app
             // about to be upgraded) - not when the operation was merely enqueued.
@@ -178,6 +206,7 @@ final class TaskConsole {
                 let batch = pending
                 await MainActor.run { self?.append(batch, to: operation) }
             }
+            await MainActor.run { self?.stopPasswordWatch() }
             return code
         }
 

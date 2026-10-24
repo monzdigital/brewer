@@ -213,7 +213,32 @@ struct RunningOperationPill: View {
     @Environment(AppState.self) private var app
 
     var body: some View {
-        if let operation = app.console.runningOperation, !app.console.isPresented {
+        if let operation = app.console.runningOperation, app.console.isWaitingForPassword {
+            // A sudo password dialog is waiting - make that impossible to miss,
+            // even with the console open.
+            Button {
+                AskPass.bringDialogToFront()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "key.fill")
+                        .foregroundStyle(.orange)
+                    Text("\(operation.title) needs your Mac login password")
+                        .font(.callout)
+                        .lineLimit(1)
+                    Text("Show Dialog")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.orange)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(.regularMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.orange.opacity(0.6), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .padding(16)
+            .help("The administrator password dialog may be behind other windows")
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        } else if let operation = app.console.runningOperation, !app.console.isPresented {
             Button {
                 app.console.isPresented = true
             } label: {
