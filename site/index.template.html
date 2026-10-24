@@ -665,8 +665,8 @@
 
   // ── Hero terminal typing ───────────────────────
   const SCRIPT = [
-    { t: "p", text: "$ " }, { t: "type", text: "brew install brewer" },
-    { t: "o", text: "\n==> Downloading brewer-1.0.0.zip" },
+    { t: "p", text: "$ " }, { t: "type", text: "brew install --cask monzdigital/tap/brewer" },
+    { t: "o", text: "\n==> Downloading Brewer-{{VERSION}}.zip" },
     { t: "o", text: "\n==> Pouring into /Applications…" },
     { t: "ok", text: "\n🍺  brewer was successfully installed!" },
     { t: "launch" }
@@ -677,7 +677,7 @@
 
   async function runTerm() {
     if (reduced) {
-      term.innerHTML = '<span class="ln p">$ </span><span class="ln c">brew install brewer</span>' +
+      term.innerHTML = '<span class="ln p">$ </span><span class="ln c">brew install --cask monzdigital/tap/brewer</span>' +
         '<span class="ln o">\n==> Pouring into /Applications…</span>' +
         '<span class="ln ok">\n🍺  brewer was successfully installed!</span>';
       heroShot.classList.add("poured");
