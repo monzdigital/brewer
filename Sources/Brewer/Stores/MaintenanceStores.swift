@@ -239,10 +239,12 @@ final class HealthStore {
         score -= min(25.0, Double(issueCount) * 4.0)
         score -= min(15.0, Double(orphans?.count ?? 0) * 2.0)
         if let cacheBytes, cacheBytes > 2_000_000_000 { score -= 10 }
-        // Known vulnerabilities from the last scan: serious ones weigh more.
+        // Known vulnerabilities from the last scan. Most are unrated and many
+        // have no fix yet, so only high/critical ones weigh much, capped so an
+        // up-to-date Mac is never scored as broken for upstream issues.
         let serious = Double(seriousAdvisoryCount)
         let other = Double(advisoryCount - seriousAdvisoryCount)
-        score -= min(20.0, serious * 5.0 + other * 1.0)
+        score -= min(10.0, serious * 3.0 + other * 0.5)
         return max(0, min(100, Int(score.rounded())))
     }
 }
