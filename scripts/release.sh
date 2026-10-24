@@ -18,11 +18,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Build with the CLT toolchain when available (immune to Xcode license state).
-# Note: notarytool/stapler later in this script DO need full Xcode.
-if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Library/Developer/CommandLineTools/SDKs ]; then
-  export DEVELOPER_DIR=/Library/Developer/CommandLineTools
-fi
+# Xcode when usable, otherwise the Command Line Tools with a pre-27 SDK.
+# Note: notarytool/stapler later in this script need full Xcode.
+source scripts/toolchain.sh
 
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" packaging/Info.plist)
 APP="dist/Brewer.app"

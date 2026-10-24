@@ -3,11 +3,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Prefer the Command Line Tools toolchain when present: builds work without
-# full Xcode and are immune to an unaccepted Xcode license.
-if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Library/Developer/CommandLineTools/SDKs ]; then
-  export DEVELOPER_DIR=/Library/Developer/CommandLineTools
-fi
+# Xcode when usable, otherwise the Command Line Tools with a pre-27 SDK.
+source scripts/toolchain.sh
 
 CONFIG="${1:-release}"
 
