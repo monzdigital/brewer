@@ -149,7 +149,7 @@ biçimleri değişmemişti. Bulunan ve 1.2.0'da düzeltilenler:
 - [ ] Notarizasyon hala bekliyor: Anahtar Zinciri'nde yalnızca "Apple Development"
       sertifikası var, "Developer ID Application" yok
 
-## Paket bazında tap güveni (2026-10-25)
+## Paket bazında tap güveni (2026-10-25, sürüm 1.3.0)
 
 Homebrew'un Tap Trust belgesi bütün tap'e güvenmek yerine yalnızca gereken
 formül, cask veya komuta güvenmeyi öneriyor. Brewer yalnızca bütün tap'e güven
