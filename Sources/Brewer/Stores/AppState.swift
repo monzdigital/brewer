@@ -48,7 +48,8 @@ final class AppState {
         let history = HistoryStore()
         self.history = history
         self.services = ServicesStore(console: console)
-        self.taps = TapsStore(console: console)
+        let taps = TapsStore(console: console)
+        self.taps = taps
         self.brewfile = BrewfileModel(console: console)
         self.health = HealthStore(console: console)
         self.duplicates = DuplicatesStore(console: console)
@@ -89,9 +90,16 @@ final class AppState {
                 }
             }
         }
-        packages.onRefreshed = { [weak meta, weak packages] in
-            guard let meta, let packages, !packages.allPackages.isEmpty else { return }
-            meta.pruneStaleSnoozes(packages: packages.allPackages)
+        packages.onRefreshed = { [weak meta, weak packages, weak taps] in
+            if let meta, let packages, !packages.allPackages.isEmpty {
+                meta.pruneStaleSnoozes(packages: packages.allPackages)
+            }
+            // Installs and removals change which packages wait for trust.
+            Task { await taps?.refreshTrust() }
+        }
+        // Trusted packages only show up in `brew info --installed` afterwards.
+        taps.onTrustChanged = { [weak packages] in
+            await packages?.refresh()
         }
         installer.onInstalled = { [weak appUpdates] path in
             await appUpdates?.refreshApp(atPath: path)

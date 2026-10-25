@@ -128,6 +128,83 @@ struct TapItem: Identifiable, Hashable {
     var isOfficial: Bool { name.hasPrefix("homebrew/") }
 }
 
+/// A formula or cask installed from a third-party tap, read from its install
+/// receipt. `brew info --installed` leaves out everything from taps Homebrew
+/// does not trust, so the receipts are the only complete list.
+struct TapInstalledItem: Identifiable, Hashable, Sendable {
+    let kind: PackageKind
+    /// Lowercased `user/repo`, the way Homebrew stores trust entries.
+    let tap: String
+    /// Formula name or cask token, lowercased.
+    let name: String
+
+    init(kind: PackageKind, tap: String, name: String) {
+        self.kind = kind
+        self.tap = tap.lowercased()
+        self.name = name.lowercased()
+    }
+
+    /// The name `brew trust --formula` / `--cask` expects.
+    var fullName: String { "\(tap)/\(name)" }
+    var id: String { "\(kind.rawValue):\(fullName)" }
+    /// "meetily-backend", or "meetily (cask)" so a formula and a cask with the
+    /// same name stay distinguishable in short lists.
+    var listLabel: String { kind == .cask ? "\(name) (cask)" : name }
+}
+
+/// What Homebrew trusts beyond its official taps (`brew trust --json=v1`).
+/// Homebrew stores every entry lowercased, and so does this.
+struct TrustEntries: Equatable, Sendable {
+    var taps: Set<String>
+    var formulae: Set<String>
+    var casks: Set<String>
+    var commands: Set<String>
+
+    init(taps: [String] = [], formulae: [String] = [], casks: [String] = [], commands: [String] = []) {
+        self.taps = Set(taps.map { $0.lowercased() })
+        self.formulae = Set(formulae.map { $0.lowercased() })
+        self.casks = Set(casks.map { $0.lowercased() })
+        self.commands = Set(commands.map { $0.lowercased() })
+    }
+
+    /// Whether Homebrew may load the item: its tap or the item itself is trusted.
+    func trusts(_ item: TapInstalledItem) -> Bool {
+        if taps.contains(item.tap) { return true }
+        return (item.kind == .formula ? formulae : casks).contains(item.fullName)
+    }
+
+    /// Whether any single formula, cask or command of `tap` is trusted.
+    func hasItemEntries(forTap tap: String) -> Bool {
+        let prefix = tap.lowercased() + "/"
+        return [formulae, casks, commands].contains { entries in
+            entries.contains { $0.hasPrefix(prefix) }
+        }
+    }
+}
+
+/// How far Homebrew trusts a tap, as the Taps page presents it.
+enum TapTrustState: Equatable {
+    /// An official tap, or a Homebrew release without tap trust.
+    case notRequired
+    /// The whole tap is trusted.
+    case wholeTap
+    /// Installed packages that still need trust; Homebrew ignores them until then.
+    case installedUntrusted([TapInstalledItem])
+    /// Every installed package is trusted on its own; the tap itself is not.
+    case installedTrusted([TapInstalledItem])
+    /// Nothing is installed from the tap and the tap is not trusted.
+    /// `partly`: some of its formulae, casks or commands are trusted.
+    case untrusted(partly: Bool)
+
+    /// Whether trusting the whole tap would still change anything.
+    var allowsWholeTapTrust: Bool {
+        switch self {
+        case .installedUntrusted, .installedTrusted, .untrusted: return true
+        case .notRequired, .wholeTap: return false
+        }
+    }
+}
+
 // MARK: - History
 
 struct HistoryEntry: Codable, Identifiable {

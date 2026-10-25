@@ -54,8 +54,11 @@ macOS 14 Sonoma and later.
 
 **Services, taps & Brewfiles**
 - Start / stop / restart `brew services` with one click
-- Add and remove taps; tap details (formula/cask counts, repo link); Homebrew 6 tap
-  trust (`brew trust`) with one click
+- Add and remove taps; tap details (formula/cask counts, repo link)
+- Tap trust the way Homebrew recommends: trust just the packages you installed from a
+  tap, or the whole tap after a confirmation (`brew trust`)
+- Packages from untrusted taps don't silently vanish: Homebrew leaves them out of its
+  package lists, so Brewer reads their install receipts and points you to Taps
 - Export, import and check Brewfiles (`brew bundle`)
 
 **Keep Homebrew healthy**

@@ -7,6 +7,17 @@ struct TapsView: View {
     @State private var addingTap = false
     @State private var newTapName = ""
     @State private var tapToRemove: TapItem?
+    @State private var tapToTrust: TapItem?
+
+    /// Whether any tap is not fully trusted, so the two trust choices need explaining.
+    private var showsTrustExplanation: Bool {
+        app.taps.taps.contains { tap in
+            switch app.taps.trustState(of: tap) {
+            case .installedUntrusted, .untrusted: return true
+            default: return false
+            }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,6 +43,20 @@ struct TapsView: View {
             .padding(12)
             Divider()
 
+            if showsTrustExplanation {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "lock.shield")
+                        .foregroundStyle(.secondary)
+                    Text("Homebrew loads packages from a third-party tap only after you trust them. \"Trust Installed\" covers just the packages you already use. \"Trust Tap\" covers everything the tap publishes, now and later.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                Divider()
+            }
+
             if app.taps.isLoading && app.taps.taps.isEmpty {
                 Spacer()
                 ProgressView("Loading taps…")
@@ -46,9 +71,22 @@ struct TapsView: View {
                 Spacer()
             } else {
                 List(app.taps.taps) { tap in
-                    TapRowView(tap: tap, onRemove: { tapToRemove = tap })
+                    TapRowView(tap: tap, onTrustTap: { tapToTrust = tap }, onRemove: { tapToRemove = tap })
                 }
                 .listStyle(.inset)
+                .confirmationDialog(
+                    "Trust everything in \(tapToTrust?.name ?? "")?",
+                    isPresented: Binding(get: { tapToTrust != nil }, set: { if !$0 { tapToTrust = nil } })
+                ) {
+                    Button("Trust Whole Tap") {
+                        if let tap = tapToTrust {
+                            Task { await app.taps.trust(tap.name) }
+                        }
+                        tapToTrust = nil
+                    }
+                } message: {
+                    Text("Homebrew will load every current and future formula, cask and command from this tap. To trust only the packages you installed, use \"Trust Installed\" instead.")
+                }
             }
         }
         .navigationTitle("Taps")
@@ -78,7 +116,7 @@ struct TapsView: View {
             Button("Cancel", role: .cancel) { newTapName = "" }
         } message: {
             Text(app.taps.supportsTrust
-                 ? "Enter the tap in user/repo form, e.g. supabase/tap. Homebrew only installs packages from taps you trust - choose \"Add & Trust\" if you know the publisher."
+                 ? "Enter the tap in user/repo form, e.g. supabase/tap. \"Add & Trust\" lets Homebrew load every package in the tap. With \"Add Only\", install packages by their full name (user/repo/package) and Homebrew trusts just those."
                  : "Enter the tap in user/repo form, e.g. supabase/tap")
         }
         .confirmationDialog(
@@ -100,11 +138,13 @@ struct TapsView: View {
 private struct TapRowView: View {
     @Environment(AppState.self) private var app
     let tap: TapItem
+    var onTrustTap: () -> Void
     var onRemove: () -> Void
 
     private var info: TapInfoJSON? { app.taps.infoCache[tap.name] }
 
     var body: some View {
+        let trust = app.taps.trustState(of: tap)
         HStack(spacing: 10) {
             Image(systemName: tap.isOfficial ? "checkmark.seal.fill" : "archivebox.fill")
                 .foregroundStyle(tap.isOfficial ? .green : .purple)
@@ -112,15 +152,7 @@ private struct TapRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(tap.name).fontWeight(.medium)
-                    if tap.isOfficial {
-                        TinyBadge(text: "official", color: .green)
-                    } else if app.taps.supportsTrust {
-                        if app.taps.isTrusted(tap.name) {
-                            TinyBadge(text: "trusted", color: .green)
-                        } else {
-                            TinyBadge(text: "not trusted - installs will fail", color: .orange)
-                        }
-                    }
+                    trustBadge(trust)
                 }
                 if let info {
                     Text("\(info.formula_names?.count ?? 0) formulae · \(info.cask_tokens?.count ?? 0) casks")
@@ -129,19 +161,10 @@ private struct TapRowView: View {
                 } else {
                     Text("Loading details…").font(.caption).foregroundStyle(.tertiary)
                 }
+                trustDetail(trust)
             }
             Spacer()
-            if app.taps.supportsTrust, !tap.isOfficial, !app.taps.isTrusted(tap.name) {
-                if app.console.isPending(subject: "tap:\(tap.name)") {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Button("Trust") {
-                        Task { await app.taps.trust(tap.name) }
-                    }
-                    .controlSize(.small)
-                    .help("Allow Homebrew to install packages from this tap (brew trust --tap)")
-                }
-            }
+            trustActions(trust)
             if let remote = info?.remote, let url = URL(string: remote) {
                 Link(destination: url) {
                     Image(systemName: "arrow.up.right.square")
@@ -163,6 +186,76 @@ private struct TapRowView: View {
             Button("Copy Name") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(tap.name, forType: .string)
+            }
+            if case .installedUntrusted = trust {
+                Button("Trust Installed Packages") {
+                    Task { await app.taps.trustInstalledItems(of: tap) }
+                }
+            }
+            if trust.allowsWholeTapTrust {
+                Button("Trust Whole Tap…", action: onTrustTap)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func trustBadge(_ trust: TapTrustState) -> some View {
+        switch trust {
+        case .notRequired:
+            if tap.isOfficial { TinyBadge(text: "official", color: .green) }
+        case .wholeTap:
+            TinyBadge(text: "trusted", color: .green)
+        case .installedUntrusted:
+            TinyBadge(text: "not trusted", color: .orange)
+        case .installedTrusted:
+            TinyBadge(text: "installed packages trusted", color: .mint)
+        case .untrusted(let partly):
+            TinyBadge(text: partly ? "partly trusted" : "not trusted", color: partly ? .yellow : .orange)
+        }
+    }
+
+    @ViewBuilder
+    private func trustDetail(_ trust: TapTrustState) -> some View {
+        switch trust {
+        case .installedUntrusted(let items):
+            Text("Installed but not trusted, so Homebrew ignores \(items.count == 1 ? "it" : "them"): \(items.map(\.listLabel).joined(separator: ", "))")
+                .font(.caption)
+                .foregroundStyle(.orange)
+        case .installedTrusted(let items):
+            Text("Trusted one by one: \(items.map(\.listLabel).joined(separator: ", "))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .untrusted:
+            Text("Nothing installed from this tap.")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        case .notRequired, .wholeTap:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func trustActions(_ trust: TapTrustState) -> some View {
+        if app.console.isPending(subject: "tap:\(tap.name)") {
+            ProgressView().controlSize(.small)
+        } else {
+            switch trust {
+            case .installedUntrusted:
+                Button("Trust Installed") {
+                    Task { await app.taps.trustInstalledItems(of: tap) }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .help("Trust only the packages you installed from this tap (brew trust --formula / --cask)")
+                Button("Trust Tap…", action: onTrustTap)
+                    .controlSize(.small)
+                    .help("Trust every current and future package in this tap (brew trust --tap)")
+            case .untrusted:
+                Button("Trust Tap…", action: onTrustTap)
+                    .controlSize(.small)
+                    .help("Trust every current and future package in this tap (brew trust --tap)")
+            case .notRequired, .wholeTap, .installedTrusted:
+                EmptyView()
             }
         }
     }

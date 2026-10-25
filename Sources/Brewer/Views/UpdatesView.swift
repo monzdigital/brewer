@@ -18,6 +18,12 @@ struct UpdatesView: View {
         VStack(spacing: 0) {
             header
             Divider()
+            if !app.taps.untrustedInstalledItems.isEmpty {
+                UntrustedPackagesNotice(items: app.taps.untrustedInstalledItems, forUpdates: true) {
+                    app.selection = .taps
+                }
+                Divider()
+            }
             HStack(spacing: 0) {
                 listColumn
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

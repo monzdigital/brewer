@@ -83,10 +83,26 @@ struct PackageBrowserView: View {
 
     // MARK: Columns
 
+    /// Installed packages Homebrew hides from this list because neither they
+    /// nor their taps are trusted (only on screens that list everything installed).
+    private var hiddenUntrusted: [TapInstalledItem] {
+        let items = app.taps.untrustedInstalledItems
+        switch scope {
+        case .all: return items
+        case .formulae: return items.filter { $0.kind == .formula }
+        case .casks: return items.filter { $0.kind == .cask }
+        default: return []
+        }
+    }
+
     private var listColumn: some View {
         VStack(spacing: 0) {
             filterBar
             Divider()
+            if !hiddenUntrusted.isEmpty {
+                UntrustedPackagesNotice(items: hiddenUntrusted) { app.selection = .taps }
+                Divider()
+            }
             if app.packages.isLoading && basePackages.isEmpty {
                 Spacer()
                 ProgressView("Loading packages…")

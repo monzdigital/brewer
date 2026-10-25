@@ -148,3 +148,19 @@ biçimleri değişmemişti. Bulunan ve 1.2.0'da düzeltilenler:
       saklanmıyordu. 1.2.0 ile tekrar denenip Geçmiş'teki çıktıya bakılmalı
 - [ ] Notarizasyon hala bekliyor: Anahtar Zinciri'nde yalnızca "Apple Development"
       sertifikası var, "Developer ID Application" yok
+
+## Paket bazında tap güveni (2026-10-25)
+
+Homebrew'un Tap Trust belgesi bütün tap'e güvenmek yerine yalnızca gereken
+formül, cask veya komuta güvenmeyi öneriyor. Brewer yalnızca bütün tap'e güven
+verebiliyordu. Ayrıca `brew info --installed` güvenilmeyen taplerdeki kurulu
+paketleri hiç listelemediği için bu paketler Brewer'da görünmüyordu.
+- [x] Taps: güvenilmeyen tap'te ana eylem "Trust Installed", yalnızca kurulu paketlere
+      `brew trust --formula` / `--cask` ile güven veriyor; bütün tap güveni onaylı ikinci seçenek
+- [x] Güven durumu `brew trust --json=v1` ile okunuyor, dosya yedek; kurulu üçüncü taraf
+      paketler kurulum makbuzlarından (INSTALL_RECEIPT.json) bulunuyor, `brew doctor` gibi
+- [x] Installed, Formulae, Casks ve Updates ekranlarında gizlenen paketler için uyarı ve Taps bağlantısı
+- [x] Arama: "Add Tap & Install" artık bütün tap'e güvenmiyor; tam adla kurulum yalnızca o paketi güvenilir kılıyor
+- [x] Site: "Homebrew ilk kullanımda tap'e güvenmeni ister" cümlesi düzeltildi
+- [ ] Yeniden adlandırılmış formüllerde rack adı eski ad kalıyor; `brew trust` kanonik ad
+      istediği için bu durumda konsolda hata görünür (Homebrew'un kendi önerisi de aynı adı kullanıyor)

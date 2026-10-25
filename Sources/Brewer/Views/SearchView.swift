@@ -66,12 +66,15 @@ struct SearchView: View {
                         .foregroundStyle(.secondary)
                     Button("Add Tap & Install") {
                         Task {
-                            if await app.taps.addTap(qualified.tap, trust: true) {
+                            // Installing by the full user/repo/package name makes
+                            // Homebrew trust just this package, not the whole tap.
+                            if await app.taps.addTap(qualified.tap, trust: false) {
                                 await app.packages.install(name: query, kind: .formula)
                             }
                         }
                     }
                     .controlSize(.small)
+                    .help("Adds the tap and installs \(query) by its full name, so Homebrew trusts only this package")
                 }
             }
         }

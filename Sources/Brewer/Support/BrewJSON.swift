@@ -216,6 +216,36 @@ struct TapInfoJSON: Decodable {
     var trusted: Bool?
 }
 
+// MARK: - brew trust --json=v1 (Homebrew 6+)
+
+struct TrustListJSON: Decodable {
+    var taps: [String]?
+    var formulae: [String]?
+    var casks: [String]?
+    var commands: [String]?
+}
+
+/// Homebrew's own trust file (~/.homebrew/trust.json), read only when
+/// `brew trust --json=v1` is unavailable.
+struct TrustStoreJSON: Decodable {
+    var trustedtaps: [String]?
+    var trustedformulae: [String]?
+    var trustedcasks: [String]?
+    var trustedcommands: [String]?
+}
+
+// MARK: - INSTALL_RECEIPT.json (formula kegs and casks)
+
+/// Only the part Brewer needs from an install receipt: the tap an installed
+/// formula or cask came from.
+struct InstallReceiptJSON: Decodable {
+    struct Source: Decodable {
+        var tap: String?
+    }
+
+    var source: Source?
+}
+
 // MARK: - brew doctor --json (Homebrew 7+)
 
 struct DoctorReportJSON: Decodable {

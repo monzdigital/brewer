@@ -9,6 +9,12 @@ struct BrewEnvironment: Sendable {
     var binDir: String { prefix + "/bin" }
     var cellarPath: String { prefix + "/Cellar" }
     var caskroomPath: String { prefix + "/Caskroom" }
+    /// `<repository>/Library/Taps`: on Apple Silicon the repository is the
+    /// prefix, while Intel and Linux installs keep it in `<prefix>/Homebrew`.
+    var tapsPath: String {
+        let candidates = [prefix + "/Library/Taps", prefix + "/Homebrew/Library/Taps"]
+        return candidates.first { FileManager.default.fileExists(atPath: $0) } ?? candidates[0]
+    }
     var isRosettaBrew: Bool { isAppleSiliconMachine && prefix == "/usr/local" }
     var exists: Bool { FileManager.default.isExecutableFile(atPath: brewPath) }
 

@@ -252,6 +252,83 @@ enum SelfTestRunner {
               TapsStore.trustedNames(fromTapInfo: tapInfos) == ["c/d"]
               && TapsStore.trustedNames(fromTapInfo: legacyInfos) == nil)
 
+        // 21b. Item-level trust: the trust list, install receipts, the brew
+        // trust commands Brewer runs and the state each tap row shows
+        let trustListSample = #"{"taps": ["Mon/Tap"], "formulae": ["a/b/x"], "casks": ["a/b/y"], "commands": []}"#
+        let trustStoreSample = #"{"trustedtaps": ["mon/tap"], "trustedformulae": ["A/B/X"]}"#
+        check("trust entries decode from brew trust --json=v1 and the trust file",
+              BrewClient.trustEntries(fromTrustJSON: Data(trustListSample.utf8))
+                == TrustEntries(taps: ["mon/tap"], formulae: ["a/b/x"], casks: ["a/b/y"])
+              && BrewClient.trustEntries(fromTrustStore: Data(trustStoreSample.utf8))
+                == TrustEntries(taps: ["mon/tap"], formulae: ["a/b/x"])
+              && BrewClient.trustEntries(fromTrustJSON: Data("Error: unknown flag".utf8)) == nil)
+        check("install receipts name the tap",
+              BrewClient.tap(fromReceipt: Data(#"{"source": {"tap": "hudochenkov/sshpass", "path": "/x"}}"#.utf8)) == "hudochenkov/sshpass"
+              && BrewClient.tap(fromReceipt: Data(#"{"source": {"tap": "Old/homebrew-legacy"}}"#.utf8)) == "Old/legacy"
+              && BrewClient.tap(fromReceipt: Data(#"{"source": {"tap": null}}"#.utf8)) == nil
+              && BrewClient.tap(fromReceipt: Data(#"{"time": 1}"#.utf8)) == nil)
+
+        let receiptRoot = FileManager.default.temporaryDirectory.appendingPathComponent("brewer-receipts-\(UUID().uuidString)").path
+        func writeReceipt(_ path: String, tap: String) {
+            try? FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent,
+                                                     withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: path, contents: Data(#"{"source": {"tap": "\#(tap)"}}"#.utf8))
+        }
+        writeReceipt(receiptRoot + "/Cellar/sshpass/1.06/INSTALL_RECEIPT.json", tap: "hudochenkov/sshpass")
+        writeReceipt(receiptRoot + "/Cellar/abseil/2026/INSTALL_RECEIPT.json", tap: "homebrew/core")
+        writeReceipt(receiptRoot + "/Cellar/orphan/1.0/INSTALL_RECEIPT.json", tap: "gone/untapped")
+        writeReceipt(receiptRoot + "/Caskroom/meetily/.metadata/INSTALL_RECEIPT.json", tap: "zackriya-solutions/meetily")
+        try? FileManager.default.createDirectory(atPath: receiptRoot + "/Caskroom/stats/.metadata", withIntermediateDirectories: true)
+        for tapDirectory in ["hudochenkov/homebrew-sshpass", "zackriya-solutions/homebrew-meetily"] {
+            try? FileManager.default.createDirectory(atPath: receiptRoot + "/Taps/" + tapDirectory, withIntermediateDirectories: true)
+        }
+        let scannedItems = BrewClient.thirdPartyInstalledItems(cellar: receiptRoot + "/Cellar", caskroom: receiptRoot + "/Caskroom",
+                                                               tapsDirectory: receiptRoot + "/Taps")
+        let scannedWithoutTapCheck = BrewClient.thirdPartyInstalledItems(cellar: receiptRoot + "/Cellar",
+                                                                         caskroom: receiptRoot + "/Caskroom")
+        try? FileManager.default.removeItem(atPath: receiptRoot)
+        check("receipt scan finds third-party formulae and casks from tapped taps only",
+              scannedItems == [TapInstalledItem(kind: .cask, tap: "zackriya-solutions/meetily", name: "meetily"),
+                               TapInstalledItem(kind: .formula, tap: "hudochenkov/sshpass", name: "sshpass")]
+              && scannedWithoutTapCheck.count == 3,
+              detail: scannedItems.map(\.id).joined(separator: ", "))
+
+        let meetilyBackend = TapInstalledItem(kind: .formula, tap: "zackriya-solutions/meetily", name: "meetily-backend")
+        let meetilyFormula = TapInstalledItem(kind: .formula, tap: "zackriya-solutions/meetily", name: "meetily")
+        let meetilyCask = TapInstalledItem(kind: .cask, tap: "Zackriya-Solutions/Meetily", name: "Meetily")
+        let sshpass = TapInstalledItem(kind: .formula, tap: "hudochenkov/sshpass", name: "sshpass")
+        check("trust commands: one brew trust call per kind with full names",
+              TapsStore.trustCommands(for: [meetilyCask, meetilyBackend, meetilyFormula])
+                == [["trust", "--formula", "zackriya-solutions/meetily/meetily", "zackriya-solutions/meetily/meetily-backend"],
+                    ["trust", "--cask", "zackriya-solutions/meetily/meetily"]]
+              && TapsStore.trustCommands(for: []).isEmpty)
+
+        let installedSample = [meetilyBackend, meetilyCask, sshpass]
+        func trustState(_ tap: String, official: Bool = false, supports: Bool = true, whole: Bool = false,
+                        _ entries: TrustEntries) -> TapTrustState {
+            TapsStore.trustState(tap: tap, isOfficial: official, supportsTrust: supports, wholeTapTrusted: whole,
+                                 entries: entries, installed: installedSample)
+        }
+        let noTrust = TrustEntries()
+        let backendOnly = TrustEntries(formulae: ["zackriya-solutions/meetily/meetily-backend"])
+        let bothMeetily = TrustEntries(formulae: ["zackriya-solutions/meetily/meetily-backend"],
+                                       casks: ["zackriya-solutions/meetily/meetily"])
+        check("tap trust state: whole tap, pending packages, packages trusted one by one",
+              trustState("homebrew/cask", official: true, noTrust) == .notRequired
+              && trustState("a/b", supports: false, noTrust) == .notRequired
+              && trustState("zackriya-solutions/meetily", whole: true, noTrust) == .wholeTap
+              && trustState("zackriya-solutions/meetily", TrustEntries(taps: ["zackriya-solutions/meetily"])) == .wholeTap
+              && trustState("Zackriya-Solutions/Meetily", noTrust) == .installedUntrusted([meetilyBackend, meetilyCask])
+              && trustState("zackriya-solutions/meetily", backendOnly) == .installedUntrusted([meetilyCask])
+              && trustState("zackriya-solutions/meetily", bothMeetily) == .installedTrusted([meetilyBackend, meetilyCask])
+              && trustState("empty/tap", noTrust) == .untrusted(partly: false)
+              && trustState("empty/tap", TrustEntries(casks: ["empty/tap/x"])) == .untrusted(partly: true))
+        check("hidden packages: untrusted items whose tap is not trusted either",
+              TapsStore.untrustedItems(in: installedSample, trustedTaps: ["hudochenkov/sshpass"], entries: backendOnly)
+                == [meetilyCask]
+              && TapsStore.untrustedItems(in: installedSample, trustedTaps: [], entries: TrustEntries(taps: ["hudochenkov/sshpass"]))
+                == [meetilyBackend, meetilyCask])
+
         // 22. Brewfile entries exclude the description comments brew bundle dump writes
         check("Brewfile entry count skips comments",
               BrewfileModel.entryCount(in: "# desc\ntap \"a/b\"\nbrew \"jq\"\n\n  # another\ncask \"x\"\n") == 3)
@@ -369,6 +446,22 @@ enum SelfTestRunner {
             check("live tap-info --installed carries the trust flag",
                   liveTaps.map { TapsStore.trustedNames(fromTapInfo: $0) != nil } ?? false,
                   detail: liveTaps.map { "\($0.count) taps" } ?? "nil")
+            let liveTrust = await Shell.runBrew(["trust", "--json=v1"])
+            let liveEntries = BrewClient.trustEntries(fromTrustJSON: Data(liveTrust.stdout.utf8))
+            check("live brew trust --json=v1 decodes", liveTrust.succeeded && liveEntries != nil,
+                  detail: liveEntries.map { "\($0.taps.count) tap(s), \($0.formulae.count) formula(e), \($0.casks.count) cask(s) trusted" }
+                    ?? liveTrust.stderr)
+            // The receipt scan must see every third-party formula brew itself lists.
+            let environment = BrewEnvironment.current
+            let liveItems = BrewClient.thirdPartyInstalledItems(cellar: environment.cellarPath, caskroom: environment.caskroomPath,
+                                                                tapsDirectory: environment.tapsPath)
+            let listed = await Shell.runBrew(["list", "--formula", "--full-name"])
+            let listedThirdParty = Set(listed.stdout.split(separator: "\n").map { $0.lowercased() }
+                .filter { $0.split(separator: "/").count == 3 && BrewClient.isThirdPartyTap($0) })
+            let scannedFormulae = Set(liveItems.filter { $0.kind == .formula }.map(\.fullName))
+            check("live receipt scan covers brew list --full-name",
+                  listed.succeeded && listedThirdParty.isSubset(of: scannedFormulae),
+                  detail: "\(scannedFormulae.count) formula(e) and \(liveItems.count - scannedFormulae.count) cask(s) from third-party taps")
         } else {
             print("      skipped live Homebrew 7 checks (older Homebrew)")
         }

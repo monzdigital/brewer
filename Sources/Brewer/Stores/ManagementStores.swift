@@ -69,7 +69,16 @@ final class TapsStore {
     var isLoading = false
     /// Homebrew 6+ refuses to load third-party taps until they are trusted.
     var supportsTrust = false
+    /// Whole taps Homebrew trusts (tap-info's flag on Homebrew 7+).
     var trustedTaps: Set<String> = []
+    /// Whole taps plus single formulae, casks and commands trusted on their own.
+    var trustEntries = TrustEntries()
+    /// Installed formulae and casks from third-party taps, from install receipts.
+    var thirdPartyInstalled: [TapInstalledItem] = []
+
+    /// Runs after a trust change so the package lists pick up what Homebrew
+    /// loads now.
+    var onTrustChanged: (() async -> Void)?
 
     private let client = BrewClient()
     private unowned let console: TaskConsole
@@ -87,20 +96,40 @@ final class TapsStore {
         // catalogs are not removable, so they stay out of this list).
         let names = await client.tapNames()
         taps = names.map { TapItem(name: $0) }
+        await refreshTrust()
+        await refreshDetails()
+    }
+
+    /// Trust entries and the installed third-party items, without listing
+    /// taps. Cheap enough to run after every package refresh, so packages
+    /// Homebrew hides are noticed on every screen, not only on Taps.
+    func refreshTrust() async {
         if !trustSupportChecked {
             supportsTrust = await client.supportsTapTrust()
             trustSupportChecked = true
         }
-        await refreshDetails()
+        guard supportsTrust else {
+            trustEntries = TrustEntries()
+            thirdPartyInstalled = []
+            return
+        }
+        let entries = await client.trustEntries()
+        let environment = BrewEnvironment.current
+        let installed = await Task.detached(priority: .utility) {
+            BrewClient.thirdPartyInstalledItems(cellar: environment.cellarPath, caskroom: environment.caskroomPath,
+                                                tapsDirectory: environment.tapsPath)
+        }.value
+        trustEntries = entries
+        thirdPartyInstalled = installed
     }
 
     /// One `brew tap-info --installed` call for counts, remotes and (on
-    /// Homebrew 7+) the official trust flag; Homebrew's private trust file is
-    /// only the fallback for versions without that flag.
+    /// Homebrew 7+) the official whole-tap trust flag; the trust list is the
+    /// fallback for versions without that flag.
     private func refreshDetails() async {
         let infos = await client.installedTapsInfo() ?? []
         for info in infos { infoCache[info.name] = info }
-        trustedTaps = Self.trustedNames(fromTapInfo: infos) ?? BrewClient.trustedTapNames()
+        trustedTaps = Self.trustedNames(fromTapInfo: infos) ?? trustEntries.taps
     }
 
     /// nil when the payload carries no `trusted` flag (Homebrew 6).
@@ -109,12 +138,71 @@ final class TapsStore {
         return Set(infos.filter { $0.trusted == true }.map { $0.name.lowercased() })
     }
 
-    func isTrusted(_ name: String) -> Bool {
-        guard supportsTrust else { return true }
-        if TapItem(name: name).isOfficial { return true }
-        return trustedTaps.contains(name.lowercased())
+    func isWholeTapTrusted(_ name: String) -> Bool {
+        let key = name.lowercased()
+        return trustedTaps.contains(key) || trustEntries.taps.contains(key)
     }
 
+    func trustState(of tap: TapItem) -> TapTrustState {
+        Self.trustState(tap: tap.name, isOfficial: tap.isOfficial, supportsTrust: supportsTrust,
+                        wholeTapTrusted: isWholeTapTrusted(tap.name), entries: trustEntries,
+                        installed: thirdPartyInstalled)
+    }
+
+    nonisolated static func trustState(tap: String, isOfficial: Bool, supportsTrust: Bool, wholeTapTrusted: Bool,
+                                       entries: TrustEntries, installed: [TapInstalledItem]) -> TapTrustState {
+        guard supportsTrust, !isOfficial else { return .notRequired }
+        let key = tap.lowercased()
+        if wholeTapTrusted || entries.taps.contains(key) { return .wholeTap }
+        let fromTap = installed.filter { $0.tap == key }
+        let pending = fromTap.filter { !entries.trusts($0) }
+        if !pending.isEmpty { return .installedUntrusted(pending) }
+        if !fromTap.isEmpty { return .installedTrusted(fromTap) }
+        return .untrusted(partly: entries.hasItemEntries(forTap: key))
+    }
+
+    /// Installed packages Homebrew ignores because neither they nor their tap
+    /// are trusted. `brew info --installed` leaves them out of every list.
+    var untrustedInstalledItems: [TapInstalledItem] {
+        guard supportsTrust else { return [] }
+        return Self.untrustedItems(in: thirdPartyInstalled, trustedTaps: trustedTaps, entries: trustEntries)
+    }
+
+    nonisolated static func untrustedItems(in installed: [TapInstalledItem], trustedTaps: Set<String>,
+                                           entries: TrustEntries) -> [TapInstalledItem] {
+        installed.filter { !trustedTaps.contains($0.tap) && !entries.trusts($0) }
+    }
+
+    /// `brew trust` takes one kind per call, so formulae and casks go
+    /// separately, each with its full `user/repo/name`.
+    nonisolated static func trustCommands(for items: [TapInstalledItem]) -> [[String]] {
+        let formulae = items.filter { $0.kind == .formula }.map(\.fullName).sorted()
+        let casks = items.filter { $0.kind == .cask }.map(\.fullName).sorted()
+        var commands: [[String]] = []
+        if !formulae.isEmpty { commands.append(["trust", "--formula"] + formulae) }
+        if !casks.isEmpty { commands.append(["trust", "--cask"] + casks) }
+        return commands
+    }
+
+    /// Trusts only the installed packages of `tap` that still need it, which
+    /// is what Homebrew recommends over trusting a whole tap.
+    func trustInstalledItems(of tap: TapItem) async {
+        guard case .installedUntrusted(let pending) = trustState(of: tap) else { return }
+        for arguments in Self.trustCommands(for: pending) {
+            let names = arguments.dropFirst(2).map { $0.split(separator: "/").last.map(String.init) ?? $0 }
+            let isCask = arguments[1] == "--cask"
+            let noun = names.count == 1 ? (isCask ? "cask" : "formula") : (isCask ? "casks" : "formulae")
+            await console.runBrew(
+                title: "Trust \(noun) \(names.joined(separator: ", "))",
+                arguments: arguments,
+                presentConsole: false,
+                subjects: ["tap:\(tap.name)"]
+            )
+        }
+        await afterTrustChange()
+    }
+
+    /// Trusts every current and future formula, cask and command of a tap.
     func trust(_ name: String) async {
         await console.runBrew(
             title: "Trust tap \(name)",
@@ -122,7 +210,13 @@ final class TapsStore {
             presentConsole: false,
             subjects: ["tap:\(name)"]
         )
+        await afterTrustChange()
+    }
+
+    private func afterTrustChange() async {
+        await refreshTrust()
         await refreshDetails()
+        await onTrustChanged?()
     }
 
     func loadInfoIfNeeded(for name: String) {

@@ -56,6 +56,46 @@ struct TinyBadge: View {
     }
 }
 
+// MARK: - Packages hidden by tap trust
+
+/// Homebrew leaves packages from untrusted taps out of `brew info --installed`,
+/// so without this notice they would silently vanish from Brewer's lists.
+struct UntrustedPackagesNotice: View {
+    let items: [TapInstalledItem]
+    /// Updates wording: these packages can't be checked for updates.
+    var forUpdates = false
+    var onReview: () -> Void
+
+    private var title: String {
+        let count = items.count
+        if forUpdates {
+            return "\(count) installed package\(count == 1 ? "" : "s") can't be checked for updates"
+        }
+        return "\(count) installed package\(count == 1 ? " is" : "s are") hidden"
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "eye.slash")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.callout.weight(.medium))
+                Text("Homebrew ignores them until you trust them or their tap: \(items.map(\.listLabel).joined(separator: ", ")).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 8)
+            Button("Review in Taps", action: onReview)
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.08))
+    }
+}
+
 // MARK: - Cards
 
 struct CardBackground: ViewModifier {

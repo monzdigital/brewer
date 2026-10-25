@@ -141,15 +141,97 @@ struct BrewClient: Sendable {
         return Int(token.split(whereSeparator: { $0 == "." || $0 == "-" }).first ?? "") ?? 0
     }
 
-    /// Taps listed in Homebrew's trust store (~/.homebrew/trust.json, or
-    /// $XDG_CONFIG_HOME/homebrew/trust.json).
-    nonisolated static func trustedTapNames() -> Set<String> {
+    /// Everything trusted beyond the official taps: whole taps and single
+    /// formulae, casks and commands. `brew trust --json=v1` is the documented
+    /// interface; Homebrew's trust file is the fallback for releases without it.
+    func trustEntries() async -> TrustEntries {
+        let result = await Shell.runBrew(["trust", "--json=v1"])
+        if result.succeeded, let entries = Self.trustEntries(fromTrustJSON: Data(result.stdout.utf8)) {
+            return entries
+        }
+        return Self.trustStoreEntries()
+    }
+
+    nonisolated static func trustEntries(fromTrustJSON data: Data) -> TrustEntries? {
+        guard let json = try? JSONDecoder().decode(TrustListJSON.self, from: data) else { return nil }
+        return TrustEntries(taps: json.taps ?? [], formulae: json.formulae ?? [],
+                            casks: json.casks ?? [], commands: json.commands ?? [])
+    }
+
+    /// Homebrew's trust store: ~/.homebrew/trust.json, or
+    /// $XDG_CONFIG_HOME/homebrew/trust.json.
+    nonisolated static func trustStoreEntries() -> TrustEntries {
         let environment = ProcessInfo.processInfo.environment
         let directory = environment["XDG_CONFIG_HOME"].map { $0 + "/homebrew" } ?? (NSHomeDirectory() + "/.homebrew")
-        guard let data = FileManager.default.contents(atPath: directory + "/trust.json"),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let taps = json["trustedtaps"] as? [String] else { return [] }
-        return Set(taps.map { $0.lowercased() })
+        guard let data = FileManager.default.contents(atPath: directory + "/trust.json") else { return TrustEntries() }
+        return trustEntries(fromTrustStore: data) ?? TrustEntries()
+    }
+
+    nonisolated static func trustEntries(fromTrustStore data: Data) -> TrustEntries? {
+        guard let json = try? JSONDecoder().decode(TrustStoreJSON.self, from: data) else { return nil }
+        return TrustEntries(taps: json.trustedtaps ?? [], formulae: json.trustedformulae ?? [],
+                            casks: json.trustedcasks ?? [], commands: json.trustedcommands ?? [])
+    }
+
+    /// Installed formulae and casks from third-party taps, read from their
+    /// install receipts the way `brew doctor` finds them. These are plain file
+    /// reads, so they also see what Homebrew refuses to load from untrusted taps.
+    /// With `tapsDirectory`, items whose tap is no longer tapped are left out:
+    /// trusting them would not make Homebrew load them.
+    nonisolated static func thirdPartyInstalledItems(cellar: String, caskroom: String,
+                                                     tapsDirectory: String? = nil) -> [TapInstalledItem] {
+        let fileManager = FileManager.default
+        func isTapped(_ tap: String) -> Bool {
+            guard let tapsDirectory else { return true }
+            let parts = tap.lowercased().split(separator: "/")
+            return parts.count == 2 && fileManager.fileExists(atPath: "\(tapsDirectory)/\(parts[0])/homebrew-\(parts[1])")
+        }
+        var items: [TapInstalledItem] = []
+        for rack in visibleEntries(of: cellar) {
+            let rackPath = cellar + "/" + rack
+            let receipts = visibleEntries(of: rackPath)
+                .map { rackPath + "/" + $0 + "/INSTALL_RECEIPT.json" }
+                .filter { fileManager.fileExists(atPath: $0) }
+            // All kegs of a formula come from the same tap; the newest one decides.
+            guard let newest = receipts.max(by: { modificationDate($0) < modificationDate($1) }),
+                  let tap = receiptTap(atPath: newest), isThirdPartyTap(tap), isTapped(tap) else { continue }
+            items.append(TapInstalledItem(kind: .formula, tap: tap, name: rack))
+        }
+        for token in visibleEntries(of: caskroom) {
+            guard let tap = receiptTap(atPath: caskroom + "/" + token + "/.metadata/INSTALL_RECEIPT.json"),
+                  isThirdPartyTap(tap), isTapped(tap) else { continue }
+            items.append(TapInstalledItem(kind: .cask, tap: tap, name: token))
+        }
+        // By name, so short lists read alphabetically whatever tap a package is from.
+        return items.sorted { ($0.name, $0.kind.rawValue, $0.tap) < ($1.name, $1.kind.rawValue, $1.tap) }
+    }
+
+    /// The `user/repo` tap an install receipt names; older receipts may still
+    /// spell the repository with its `homebrew-` prefix.
+    nonisolated static func tap(fromReceipt data: Data) -> String? {
+        guard let raw = (try? JSONDecoder().decode(InstallReceiptJSON.self, from: data))?.source?.tap else { return nil }
+        let parts = raw.split(separator: "/").map(String.init)
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { return nil }
+        let repo = parts[1].hasPrefix("homebrew-") ? String(parts[1].dropFirst("homebrew-".count)) : parts[1]
+        return repo.isEmpty ? nil : parts[0] + "/" + repo
+    }
+
+    /// Official taps (homebrew/core, homebrew/cask, …) never need trust.
+    nonisolated static func isThirdPartyTap(_ tap: String) -> Bool {
+        !tap.lowercased().hasPrefix("homebrew/")
+    }
+
+    private nonisolated static func receiptTap(atPath path: String) -> String? {
+        guard let data = FileManager.default.contents(atPath: path) else { return nil }
+        return tap(fromReceipt: data)
+    }
+
+    private nonisolated static func visibleEntries(of directory: String) -> [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []).filter { !$0.hasPrefix(".") }
+    }
+
+    private nonisolated static func modificationDate(_ path: String) -> Date {
+        ((try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date) ?? .distantPast
     }
 
     // MARK: Maintenance
